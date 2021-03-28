@@ -26,11 +26,7 @@ if(${NOGRAPHICALINTERFACE} EQUAL OFF)
     find_package(SDL2_ttf)
     find_package(SDL2_gfx)
 
-    CPMAddPackage(
-        NAME libsdl2-gui
-        VERSION 0.1.0-alpha.1
-        GITHUB_REPOSITORY H4ck-Software/libsdl2-gui
-    )
+    CPMAddPackage("gh:H4ck-Software/libsdl2-gui@0.1.0-alpha.1")
 else()
     add_compile_definitions(NO_GRAPHICAL_INTERFACE)
 endif()
