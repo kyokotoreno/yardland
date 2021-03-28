@@ -17,7 +17,7 @@ add_executable(tests tests.cpp)
 
 # add dependencies
 include(cmake/CPM.cmake)
-CPMAddPackage("gh:H4ck-Software/libyardland@0.3.0")
+CPMAddPackage("gh:H4ck-Software/libyardland@0.3.0-alpha.1")
 
 # link dependencies
 target_link_libraries(tests libyardland)
