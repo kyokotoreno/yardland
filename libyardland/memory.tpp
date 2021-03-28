@@ -25,3 +25,7 @@ X memory<T, X>::get(T address)
 
     return this->memory_buffer[address];
 }
+
+template class memory<uint16_t, uint8_t>;
+template class memory<uint32_t, uint8_t>;
+template class memory<uint32_t, uint16_t>;
