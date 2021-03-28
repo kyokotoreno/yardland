@@ -84,5 +84,3 @@ private:
 
     std::vector<MMIODevice> MMIODevices;
 };
-
-#include <libyardland/memory.tpp>
