@@ -18,8 +18,7 @@ if(${NOGRAPHICALINTERFACE} EQUAL OFF)
 
     CPMAddPackage(
         NAME libsdl2-gui
-        VERSION 0.1.0
-        GIT_TAG main
+        VERSION 0.1.0-alpha.1
         GITHUB_REPOSITORY H4ck-Software/libsdl2-gui
     )
 else()
