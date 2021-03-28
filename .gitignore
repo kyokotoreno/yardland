@@ -15,3 +15,10 @@ build/
 .vscode/
 cmake/CPM_*.cmake
 CPM_modules/
+
+docs/_build
+docs/_static
+docs/_templates
+docs/doxygen
+docs/Doxyfile
+docs/make.bat
