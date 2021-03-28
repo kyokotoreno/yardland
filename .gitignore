@@ -1,4 +1,3 @@
-
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
@@ -14,3 +13,5 @@ build/
 *.code-workspace
 .vs/
 .vscode/
+cmake/CPM_*.cmake
+CPM_modules/
