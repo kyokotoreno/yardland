@@ -6,6 +6,8 @@
     ],
     "settings": {
         "files.associations": {
+            "*.?pp": "cpp",
+            "*.s": "ca65",
             "iostream": "cpp",
             "*.ipp": "cpp",
             "exception": "cpp",
@@ -52,7 +54,33 @@
             "functional": "cpp",
             "list": "cpp",
             "unordered_map": "cpp",
-            "xhash": "cpp"
+            "xhash": "cpp",
+            "any": "cpp",
+            "array": "cpp",
+            "bit": "cpp",
+            "*.tcc": "cpp",
+            "chrono": "cpp",
+            "clocale": "cpp",
+            "cstdarg": "cpp",
+            "ctime": "cpp",
+            "cwctype": "cpp",
+            "deque": "cpp",
+            "forward_list": "cpp",
+            "map": "cpp",
+            "set": "cpp",
+            "unordered_set": "cpp",
+            "algorithm": "cpp",
+            "memory_resource": "cpp",
+            "numeric": "cpp",
+            "optional": "cpp",
+            "random": "cpp",
+            "ratio": "cpp",
+            "string_view": "cpp",
+            "iomanip": "cpp",
+            "ranges": "cpp",
+            "sstream": "cpp",
+            "cinttypes": "cpp",
+            "variant": "cpp"
         }
     }
 }
