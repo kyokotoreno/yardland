@@ -1,3 +1,5 @@
+# Ignore CMake Files
+
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
@@ -10,11 +12,18 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 build/
-*.code-workspace
+
+# Ignore Visual Studio and VS Code Files
+
 .vs/
 .vscode/
+
+# Ignore CPM Files
+
 cmake/CPM_*.cmake
 CPM_modules/
+
+# Ignore Doxygen and Sphinx Files
 
 docs/_build
 docs/_static
@@ -22,3 +31,6 @@ docs/_templates
 docs/doxygen
 docs/Doxyfile
 docs/make.bat
+
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
