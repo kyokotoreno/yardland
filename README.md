@@ -1,13 +1,13 @@
 # Yardland
 
-Yardland is a C++ library for dealing with old computer system emulation, Originally made to emulate systems based on CPUs from the 65xx Architecture.
+Libyardland is a C++ library for dealing with old computer system emulation, Originally made to emulate systems based on CPUs from the 65xx Architecture.
 
 ## Installation
 
-Use the package manager [CPM](https://github.com/cpm-cmake/CPM.cmake) to install Yardland.
+Use the package manager [CPM](https://github.com/cpm-cmake/CPM.cmake) to install libyardland as a dependency to your project.
 
 ```CMake
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.16)
 
 # create project
 project(MyProject)
@@ -17,10 +17,10 @@ add_executable(tests tests.cpp)
 
 # add dependencies
 include(cmake/CPM.cmake)
-CPMAddPackage("gh:eliotvonecklie/libyardland@1.0.0")
+CPMAddPackage("gh:H4ck-Software/libyardland@0.3.0-alpha.1")
 
 # link dependencies
-target_link_libraries(tests libyardland)
+target_link_libraries(tests ${LIBYARDLAND_LIBRARY})
 ```
 
 ## Contributing
