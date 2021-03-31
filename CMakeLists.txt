@@ -11,7 +11,7 @@ option(NO_DOCS_GENERATION "Avoid compiling docs subdirectory." OFF)
 
 include(CPM)
 
-if(${NOGRAPHICALINTERFACE} EQUAL OFF)
+if(${NO_GRAPHICAL_INTERFACE} EQUAL OFF)
     find_package(SDL2)
     find_package(SDL2_ttf)
     find_package(SDL2_gfx)
@@ -26,7 +26,7 @@ add_library( yardland
     ${PROJECT_SOURCE_DIR}/libyardland/memory.tpp
 )
 
-add_library(yardland::yardland ALIAS yardland)
+add_library(yardland::libyardland ALIAS yardland)
 
 if(${NO_GRAPHICAL_INTERFACE} EQUAL OFF)
     target_include_directories( yardland
@@ -53,19 +53,27 @@ if(${NO_DOCS_GENERATION} EQUAL OFF)
     add_subdirectory(docs)
 endif()
 
-add_executable( yardland-exe
+add_executable( yardland-bin
     ${PROJECT_SOURCE_DIR}/yardland/main.cpp
 )
 
-target_include_directories( yardland-exe
+set_target_properties( yardland-bin PROPERTIES
+    OUTPUT_NAME yardland
+)
+
+add_executable( yardland::yardland ALIAS yardland-bin)
+
+target_include_directories( yardland-bin
     PUBLIC ${PROJECT_SOURCE_DIR}
 )
 
-target_link_libraries( yardland-exe
-    SDL2::Main
-    SDL2::GFX
-    SDL2::TTF
-    sdl2-gui
-    yardland
-    SDL2::Core
-)
+if (${NO_GRAPHICAL_INTERFACE} EQUAL OFF)
+    target_link_libraries( yardland-bin
+        SDL2::Main
+        yardland::libyardland
+    )
+else()
+    target_link_libraries( yardland-bin
+        yardland::libyardland
+    )
+endif()
