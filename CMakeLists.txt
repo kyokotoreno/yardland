@@ -21,7 +21,7 @@ else()
     add_compile_definitions(NO_GRAPHICAL_INTERFACE)
 endif()
 
-add_library( yardland
+add_library( yardland SHARED
     ${PROJECT_SOURCE_DIR}/libyardland/mmu-tlb.cpp
     ${PROJECT_SOURCE_DIR}/libyardland/memory.tpp
 )
