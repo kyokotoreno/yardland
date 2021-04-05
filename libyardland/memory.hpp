@@ -22,7 +22,7 @@
  * @tparam X Data Type
  */
 template <typename T, typename X>
-class memory
+class Memory
 {
 public:
     /**
@@ -30,7 +30,7 @@ public:
      * 
      * @param size The size of this memory bank (Number of X elements of the memory bank).
      */
-	memory(T size);
+	Memory(T size);
 
     /**
      * @brief Get an 'X' element from this memory bank.

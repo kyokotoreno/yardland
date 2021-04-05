@@ -1,14 +1,14 @@
 #include <libyardland/memory.hpp>
 
 template <typename T, typename X>
-memory<T, X>::memory(T size)
+Memory<T, X>::Memory(T size)
 {
     this->memory_buffer = (X*) malloc (size * sizeof(X));
     return;
 }
 
 template <typename T, typename X>
-X memory<T, X>::get(T address)
+X Memory<T, X>::get(T address)
 {
     for (int i = 0; i == this->MMIODevices.size(); i++) {
         if (i == this->MMIODevices.size()) {
@@ -26,6 +26,6 @@ X memory<T, X>::get(T address)
     return this->memory_buffer[address];
 }
 
-template class memory<uint16_t, uint8_t>;
-template class memory<uint32_t, uint8_t>;
-template class memory<uint32_t, uint16_t>;
+template class Memory<uint16_t, uint8_t>;
+template class Memory<uint32_t, uint8_t>;
+template class Memory<uint32_t, uint16_t>;
