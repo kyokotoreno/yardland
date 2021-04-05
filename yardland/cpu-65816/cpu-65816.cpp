@@ -1,4 +1,4 @@
-#include <yardland/cpu-65816.hpp>
+#include <yardland/cpu-65816/cpu-65816.hpp>
 
 #define CPU_65816_FLAG_CARRY        0b00000001
 #define CPU_65816_FLAG_ZERO         0b00000010
@@ -26,13 +26,16 @@ cpu_65816::cpu_65816()
 	return;
 }
 
-int cpu_65816::OnUpdate()
+void cpu_65816::Step()
 {
-	//uint8_t IR = memory.prog_getc(PBR, PCL);
-	uint16_t Addr = 0;
-	uint8_t bank = 0;
-	uint8_t inmediate = 0;
-	uint16_t inmediate16 = 0;
+
+    // Temporal Pseudo-Registers.
+
+	std::uint8_t  IR /*= memory.prog_getc(PBR, PCL)*/;
+	std::uint16_t Addr = 0;
+	std::uint8_t  bank = 0;
+	std::uint8_t  inmediate = 0;
+	std::uint16_t inmediate16 = 0;
 
 	switch(IR)
 	{
