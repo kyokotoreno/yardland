@@ -2,10 +2,10 @@ find_package(Doxygen REQUIRED)
 find_package(Sphinx REQUIRED)
 
 # Find all the public headers
-get_target_property(YARDLAND_PUBLIC_HEADER_DIR yardland INTERFACE_INCLUDE_DIRECTORIES)
-file(GLOB_RECURSE YARDLAND_PUBLIC_HEADERS ${YARDLAND_PUBLIC_HEADER_DIR}/libyardland/*.hpp)
+get_target_property(LIBYARDLAND_PUBLIC_HEADER_DIR yardland::libyardland INTERFACE_INCLUDE_DIRECTORIES)
+file(GLOB_RECURSE LIBYARDLAND_PUBLIC_HEADERS ${LIBYARDLAND_PUBLIC_HEADER_DIR}/libyardland/*.hpp)
 
-set(DOXYGEN_INPUT_DIR ${PROJECT_SOURCE_DIR}/libyardland)
+set(DOXYGEN_INPUT_DIR ${LIBYARDLAND_PUBLIC_HEADER_DIR}/libyardland)
 set(DOXYGEN_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/doxygen)
 set(DOXYGEN_INDEX_FILE ${DOXYGEN_OUTPUT_DIR}/xml/index.xml)
 set(DOXYFILE_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
@@ -19,7 +19,7 @@ file(MAKE_DIRECTORY ${DOXYGEN_OUTPUT_DIR})
 
 # Only regenerate Doxygen when the Doxyfile or public headers change
 add_custom_command(OUTPUT ${DOXYGEN_INDEX_FILE}
-                   DEPENDS ${YARDLAND_PUBLIC_HEADERS}
+                   DEPENDS ${LIBYARDLAND_PUBLIC_HEADERS}
                    COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYFILE_OUT}
                    MAIN_DEPENDENCY ${DOXYFILE_OUT} ${DOXYFILE_IN}
                    COMMENT "Generating docs"
