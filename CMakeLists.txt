@@ -32,6 +32,7 @@ CPMAddPackage("gh:H4ck-Software/libsdl2-gui#main@0.1.0")
 add_library( yardland SHARED
     ${PROJECT_SOURCE_DIR}/libyardland/mmu-tlb.cpp
     ${PROJECT_SOURCE_DIR}/libyardland/memory.tpp
+    ${PROJECT_SOURCE_DIR}/libyardland/binary-file/binary-file.cpp
     ${PROJECT_SOURCE_DIR}/libyardland/utils/buffers/fifo.cpp
 )
 
@@ -48,19 +49,15 @@ target_link_libraries( yardland
 
 add_library(yardland::libyardland ALIAS yardland)
 
-
-
 add_executable( yardland-bin
     ${PROJECT_SOURCE_DIR}/yardland/main.cpp
-    ${PROJECT_SOURCE_DIR}/yardland/mmio-6551.cpp
-    ${PROJECT_SOURCE_DIR}/yardland/cpu-65816/cpu-65816.cpp
+    # ${PROJECT_SOURCE_DIR}/yardland/mmio-6551.cpp
+    # ${PROJECT_SOURCE_DIR}/yardland/cpu-65816/cpu-65816.cpp
 )
 
 set_target_properties( yardland-bin PROPERTIES
     OUTPUT_NAME yardland
 )
-
-
 
 target_include_directories( yardland-bin
     PUBLIC ${PROJECT_SOURCE_DIR}
@@ -78,6 +75,15 @@ add_executable( yardland-bin-test
 )
 
 target_link_libraries( yardland-bin-test
+    yardland::libyardland
+    gtest_main
+)
+
+add_executable( yardland-test
+    ${PROJECT_SOURCE_DIR}/libyardland/binary-file/binary-file.test.cpp
+)
+
+target_link_libraries( yardland-test
     yardland::libyardland
     gtest_main
 )
