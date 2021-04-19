@@ -1,4 +1,4 @@
-#include <yardland/cpu-65816/cpu-65816.hpp>
+#include <libyardland/cpu/cpu-65816.hpp>
 
 #define CPU_65816_FLAG_CARRY        0b00000001
 #define CPU_65816_FLAG_ZERO         0b00000010
@@ -9,55 +9,66 @@
 #define CPU_65816_FLAG_OVERFLOW     0b01000000
 #define CPU_65816_FLAG_NEGATIVE     0b10000000
 
+// ADDRESS CALC MACROS
+#define addr_bankabs    (bank, address) (uint16_t)  ((bank << 16) + address)
+#define addr_8to16      (msb, lsb)      (uint16_t)  ((msb << 8) + lsb)
+#define addr_16toLsb    (address)       (uint8_t)   (address & 0x00ff)
+#define addr_16toMsb    (address)       (uint8_t)   (address >> 8)
+
 cpu_65816::cpu_65816()
 {
-	AH = 0, AL = 0;
-	XH = 0, XL = 0;
-	YH = 0, YL = 0;
-	KH = 0, KL = 0b00110000;
-	D = 0;
-	PCL = 0xe000, PBR = 0, DBR = 0;
+    this->AH = 0, this->AL = 0;
+    this->XH = 0, this->XL = 0;
+    this->YH = 0, this->YL = 0;
+    
+    this->KH = 0, this->KL = 0b00110000;
 
-	SL = 0xff, SH = 0x01;
+    this->D = 0;
 
-	stack.stack_ptr_lsb = &SL;
-	stack.stack_ptr_msb = &SH;
+    this->PCL = 0xe000, this->PBR = 0, this->DBR = 0;
 
-	return;
+    this->SL = 0xff, this->SH = 0x01;
+
+    // this->stack.stack_ptr_lsb = &SL; // ! Not working.
+    // this->stack.stack_ptr_msb = &SH; // ! Not working.
+
+    return;
 }
 
-void cpu_65816::Step()
+void cpu_65816::Step() // ! Not working
 {
 
     // Temporal Pseudo-Registers.
 
-	std::uint8_t  IR /*= memory.prog_getc(PBR, PCL)*/;
-	std::uint16_t Addr = 0;
-	std::uint8_t  bank = 0;
-	std::uint8_t  inmediate = 0;
-	std::uint16_t inmediate16 = 0;
+    std::uint8_t  IR /*= memory.prog_getc(PBR, PCL)*/;
 
-	switch(IR)
+    std::uint16_t Addr = 0;
+    std::uint8_t  bank = 0;
+
+    std::uint8_t  inmediate = 0;
+    std::uint16_t inmediate16 = 0;
+
+    switch(IR)
 	{
-		case 0x00: // BRK s
-			PCL += 2;
-			break;
-		case 0x01: // ORA (d,x)
-			PCL++;
-			inmediate = memory.prog_getc(PBR, PCL);
-			D += inmediate;
-			D += addr_8to16(XH, XL);
-			Addr = memory.data_getw(0, D);
-			if ((KL & CPUFLAG_MEMORYSELECT) == CPUFLAG_MEMORYSELECT)
-				AL |= memory.data_getc(DBR, Addr);
-			else
-			{
-				AL |= memory.data_getc(DBR, Addr);
-				AH |= memory.data_getc(DBR, Addr + 1);
-			}
-			break;
-		case 0x02: // COP s
-			PCL += 2;
+        case 0x00: // BRK s
+        	PCL += 2;
+        	break;
+        case 0x01: // ORA (d,x)
+        	PCL++;
+        	inmediate = memory.prog_getc(PBR, PCL);
+        	D += inmediate;
+        	D += addr_8to16(XH, XL);
+        	Addr = memory.data_getw(0, D);
+        	if ((KL & CPUFLAG_MEMORYSELECT) == CPUFLAG_MEMORYSELECT)
+        		AL |= memory.data_getc(DBR, Addr);
+        	else
+        	{
+        		AL |= memory.data_getc(DBR, Addr);
+        		AH |= memory.data_getc(DBR, Addr + 1);
+        	}
+        	break;
+        case 0x02: // COP s
+        	PCL += 2;
 			break;/*
 		case 0x03: // ORA d,s
 			break;
@@ -204,10 +215,10 @@ void cpu_65816::Step()
 			switch (memory.prog_getc(PBR, PCL))
 			{
 				case 0x00:
-					terminal_enable = terminal_enable ? false : true;
+					// terminal_enable = terminal_enable ? false : true;
 					break;
 				case 0x01:
-					render_enable = render_enable ? false : true;
+					// render_enable = render_enable ? false : true;
 					break;
 				default:
 					break;
@@ -542,8 +553,7 @@ void cpu_65816::Step()
 			PCL++;
 			if ((KL & 0b00100000) == 0b00100000)
 				AL = memory.prog_getc(DBR, PCL);
-			else
-			{
+			else {
 				AL = memory.prog_getc(DBR, PCL);
 				PCL++;
 				AH = memory.prog_getc(DBR, PCL);
@@ -848,12 +858,14 @@ void cpu_65816::Step()
 			break;*/
 		case 0xe8: // INX i
 			XL++;
-			if (XL >= 255) 
-			{
+			if (XL >= 255) {
 				XL = 0;
-				KL |= 0b00000010;
-				if ((KL | 0b11101111) == 0b11101111)
+				
+                KL |= 0b00000010;
+				
+                if ((KL | 0b11101111) == 0b11101111) {
 					XH++;
+                }
 			}
 			PCL++;
 			break;
@@ -867,34 +879,33 @@ void cpu_65816::Step()
 		case 0xec:
 			break;*/
 		case 0xed: // SBC a
-			if ((KL & CPUFLAG_MEMORYSELECT) == CPUFLAG_MEMORYSELECT)
-			{
-				PCL++;
-				Addr = memory.prog_getw(PBR, PCL);
-				PCL++;
-				AL -= memory.data_getc(DBR, Addr);
+			if ((KL & CPUFLAG_MEMORYSELECT) == CPUFLAG_MEMORYSELECT) {
+				this->PCL++;
+				Addr = memory.prog_getw(this->PBR, this->PCL);
+				this->PCL++;
+				this->AL -= memory.data_getc(this->DBR, Addr);
 			}
-			else
-			{
-				inmediate16 = addr_8to16(AH, AL);
-				PCL++;
-				Addr = memory.prog_getw(PBR, PCL);
-				PCL++;
-				inmediate16 -= memory.data_getc(DBR, Addr);
-				AH = addr_16toMsb(inmediate16);
-				AL = addr_16toLsb(inmediate16);
+			else {
+				inmediate16 = addr_8to16(this->AH, this->AL);
+				this->PCL++;
+				Addr = memory.prog_getw(this->PBR, this->PCL);
+				this->PCL++;
+				inmediate16 -= memory.data_getc(this->DBR, Addr);
+				this->AH = addr_16toMsb(inmediate16);
+				this->AL = addr_16toLsb(inmediate16);
 			}
-			PCL++;
+			this->PCL++;
 			break;/*
 		case 0xee:
 			break;
 		case 0xef:
 			break;*/
 		case 0xf0: // BEQ r
-			PCL++;
-			if((KL & 0b00000010) == 0b00000010)
-				PCL += (int8_t)memory.prog_getc(PBR, PCL);
-			PCL++;
+			this->PCL++;
+			if ((this->KL & 0b00000010) == 0b00000010) {
+				this->PCL += (int8_t)memory.prog_getc(this->PBR, this->PCL);
+            }
+            this->PCL++;
 			break;/*
 		case 0xf1:
 			break;
@@ -915,14 +926,14 @@ void cpu_65816::Step()
 		case 0xf9:
 			break;*/
 		case 0xfa: // PLX s
-			if ((KL & 0b00010000) == 0b00010000)
-				XL = stack.pull();
-			else
-			{
-				XH = stack.pull();
-				XL = stack.pull();
+			if ((this->KL & 0b00010000) == 0b00010000) {
+				// XL = stack.pull();
+            }
+			else {
+				// XH = stack.pull();
+				// XL = stack.pull();
 			}
-			PCL++;
+			this->PCL++;
 			break;/*
 		case 0xfb:
 			break;
@@ -935,9 +946,9 @@ void cpu_65816::Step()
 		case 0xff:
 			break;*/
 		default:
-			std::cerr << std::showbase << std::hex;
-			std::cerr << "[Yardland/vcpu816] Error!, Found an illegal opcode (" << (int)IR << ") " << "at address (" << (int)PCL << ")." << std::endl;
-			PCL++;
+			std::cerr << std::showbase;
+			std::cerr << "[Yardland/vcpu816] Error!, Found an illegal opcode (" << std::hex << IR << ") " << "at address (" << std::hex << this->PCL << ")." << std::endl;
+			this->PCL++;
 			break;
 	}
 	return 0;
