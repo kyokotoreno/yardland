@@ -2,4 +2,4 @@
 
 #include <iostream>
 
-#include <yardland/cpu-65816/cpu-65816.hpp>
+#include <libyardland/cpu/cpu-65816.hpp>
