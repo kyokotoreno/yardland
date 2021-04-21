@@ -1,4 +1,4 @@
-#include <yardland/mmio-6551.hpp>
+#include <libyardland/mmio/mmio-6551.hpp>
 
 void MMIO_6551::access(uint32_t address, uint8_t* data, bool get)
 {

@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include <libyardland/mmio-class.hpp>
+#include <libyardland/mmio/mmio-class.hpp>
 #include <libyardland/utils/buffers/fifo.hpp>
 
 class MMIO_6551 : MMIOClass

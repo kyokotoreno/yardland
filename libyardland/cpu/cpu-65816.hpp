@@ -1,8 +1,9 @@
 /**
  * @file cpu-65816.hpp
  * @author Joseph Hans Diaz Gonzalez <eliotvonecklie@gmail.com>
- * @brief 
- * @version 0.1.0
+ * @brief 65816 Virtual Processor Class.
+ * @version v0.3.0
+ * @since v0.1.0
  * @date 2021-03-28
  * 
  * @copyright Copyright (c) 2021
@@ -16,6 +17,11 @@
 
 // #include <libyardland/utils/buffers/filo.hpp>
 
+/**
+ * @brief 65816 Virtual Processor Class.
+ * @version v0.3.0
+ * @since v0.1.0
+ */
 class cpu_65816
 {
 public:
