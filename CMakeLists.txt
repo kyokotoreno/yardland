@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
-option(YARDLAND_GFXSUPPORT "Compile with Graphics support (Requires SDL2, SDL2_gfx, SDL2_ttf and libsdl2-gui)" OFF)
+option(YARDLAND_GFXSUPPORT "Compile with Graphics support (Requires SDL2, SDL2_gfx, SDL2_ttf and libsdl2-gui)." ON)
+option(YARDLAND_BUILDDOCS "Compile documentation." OFF)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -24,7 +25,11 @@ enable_testing()
 
 include(CPM)
 
-if(YARDLAND_GFXSUPPORT)
+if(UNIX)
+    add_compile_definitions(UNIX)
+endif()
+
+if(${YARDLAND_GFXSUPPORT})
     find_package(SDL2 REQUIRED)
     find_package(SDL2_ttf REQUIRED)
     find_package(SDL2_gfx REQUIRED)
@@ -33,12 +38,13 @@ if(YARDLAND_GFXSUPPORT)
 endif()
 
 add_library( yardland SHARED
-    ${PROJECT_SOURCE_DIR}/libyardland/cpu/cpu-65816.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/mmio/mmio-6551.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/mmu/mmu-tlb.cpp
+    #${PROJECT_SOURCE_DIR}/libyardland/cpu/cpu-65816.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/video/video.cpp
+    #${PROJECT_SOURCE_DIR}/libyardland/mmio/mmio-6551.cpp
+    #${PROJECT_SOURCE_DIR}/libyardland/mmu/mmu-tlb.cpp
     ${PROJECT_SOURCE_DIR}/libyardland/memory/memory.tpp
     ${PROJECT_SOURCE_DIR}/libyardland/binary-file/binary-file.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/utils/buffers/fifo.cpp
+    #${PROJECT_SOURCE_DIR}/libyardland/utils/buffers/fifo.cpp
 )
 
 target_include_directories( yardland
@@ -48,7 +54,7 @@ target_include_directories( yardland
 target_link_libraries( yardland
     SDL2::GFX
     SDL2::TTF
-    SDL2::GUI
+    #SDL2::GUI
     SDL2::Core
 )
 
@@ -87,6 +93,7 @@ add_executable( yardland::yardland ALIAS yardland-bin)
 
 add_executable( yardland-tests
     ${PROJECT_SOURCE_DIR}/libyardland/cpu/cpu-65816.test.cpp
+    #${PROJECT_SOURCE_DIR}/libyardland/mmio/mmio-6551.test.cpp
     ${PROJECT_SOURCE_DIR}/libyardland/binary-file/binary-file.test.cpp
 )
 
@@ -104,4 +111,6 @@ add_test(
 ## Compile Documentation
 ##
 
-add_subdirectory(docs)
+if(${YARDLAND_BUILDDOCS})
+    add_subdirectory(docs)
+endif()

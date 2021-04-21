@@ -2,8 +2,8 @@
  * @file iod-class.hpp
  * @author Joseph Hans Diaz Gonzalez <eliotvonecklie@gmail.com>
  * @brief Input Output device parent class.
- * @version v0.3.0-alpha.1
- * @since v0.3.0-alpha.1
+ * @version v0.3.0
+ * @since v0.3.0
  * @date 2021-03-28
  * 
  * @copyright Copyright (c) 2021
@@ -18,8 +18,8 @@
  * @brief An I/O device retrieved from the interface/wrapper program.
  * 
  * @author  Joseph Hans Diaz <josephhansdiaz30@gmail.com>
- * @version v0.3.0-alpha.1
- * @since   v0.3.0-alpha.1
+ * @version v0.3.0
+ * @since   v0.3.0
  */
 class IODClass
 {
