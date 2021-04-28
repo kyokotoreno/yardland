@@ -32,13 +32,15 @@ endif()
 if(${YARDLAND_GFXSUPPORT})
     find_package(SDL2 REQUIRED)
     find_package(SDL2_ttf REQUIRED)
-    find_package(SDL2_gfx REQUIRED)
 
     CPMAddPackage("gh:H4ck-Software/libsdl2-gui#main@0.1.0")
 endif()
 
 add_library( yardland SHARED
     #${PROJECT_SOURCE_DIR}/libyardland/cpu/cpu-65816.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/cpu/emu816-master/emu816.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/cpu/emu816-master/mem816.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/cpu/emu816-master/wdc816.cpp
     ${PROJECT_SOURCE_DIR}/libyardland/video/video.cpp
     #${PROJECT_SOURCE_DIR}/libyardland/mmio/mmio-6551.cpp
     #${PROJECT_SOURCE_DIR}/libyardland/mmu/mmu-tlb.cpp
@@ -52,9 +54,7 @@ target_include_directories( yardland
 )
 
 target_link_libraries( yardland
-    SDL2::GFX
     SDL2::TTF
-    #SDL2::GUI
     SDL2::Core
 )
 

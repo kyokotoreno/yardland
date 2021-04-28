@@ -4,7 +4,9 @@ video* video_adapter;
 
 SDL_Event AppSDLEvent;
 
-int main(/*int argc, char** argv*/)
+bool ArgPrintPerformance = false;
+
+int main(int argc, char** argv)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_EVENTS) < 0) {
         std::cerr << "[yardland/main.cpp:10] ERROR SDL could not initialize!\n\tSDL Error: " << SDL_GetError() << std::endl;
