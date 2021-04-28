@@ -1,5 +1,10 @@
 #include <libyardland/video/video.hpp>
 
+#define TERMINAL_SCREEN_WIDTH   320
+#define TERMINAL_SCREEN_HEIGHT  200
+#define TERMINAL_COLUMNS         40
+#define TERMINAL_ROWS            25
+
 video::video()
 {
     this->window = SDL_CreateWindow
@@ -23,14 +28,14 @@ video::video()
         SDL_RENDERER_ACCELERATED
         );
 
-    this->virtual_scr_width = 320;
-    this->virtual_scr_height = 200;
-
     this->virtual_scr_pixelformat = SDL_PIXELFORMAT_RGB444;
+
+    this->virtual_scr_width  = TERMINAL_SCREEN_WIDTH;
+    this->virtual_scr_height = TERMINAL_SCREEN_HEIGHT;
 
     this->virtual_scr_pixelbuf = new std::vector <Uint8> (this->virtual_scr_width * this->virtual_scr_height * 2);
 
-    this->terminal_buffer = new std::vector <char>(40 * 25);
+    this->terminal_buffer = new std::vector <char>(TERMINAL_COLUMNS * TERMINAL_ROWS);
 
     this->virtual_scr_texture = SDL_CreateTexture
         (
@@ -40,6 +45,9 @@ video::video()
         this->virtual_scr_width,
         this->virtual_scr_height
         );
+
+    // Deactivate performance test
+    this->ArgPerformanceTest = false;
 
     std::cout << "[libyardland/video/video.cpp:44] INFO Initialized virtual video adapter." << std::endl;
 
@@ -52,26 +60,29 @@ void video::OnRender()
     SDL_SetRenderDrawColor( this->window_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE );
     SDL_RenderClear(this->window_renderer);
 
-    // splat down some random pixels
-    
-    for (unsigned int i = 0; i < this->virtual_scr_pixelbuf->capacity(); i++)
-    {
-        const unsigned int x = rand() % this->virtual_scr_width;
-        const unsigned int y = rand() % this->virtual_scr_height;
+    // splat down some random pixels, if performance test is enabled.
 
-        const unsigned int offset = ( this->virtual_scr_width * 2 * y ) + x * 2;
+    if (this->ArgPerformanceTest) {
+        for (unsigned int i = 0; i < this->virtual_scr_pixelbuf->capacity(); i++)
+        {
+            const unsigned int x = rand() % this->virtual_scr_width;
+            const unsigned int y = rand() % this->virtual_scr_height;
 
-        (*virtual_scr_pixelbuf)[ offset + 0 ]  =  rand() % 0x0f;       // b
-        (*virtual_scr_pixelbuf)[ offset + 0 ] += (rand() % 0x0f) << 5; // g
-        (*virtual_scr_pixelbuf)[ offset + 1 ]  =  rand() % 0x0f;       // r
-        
-        //(*virtual_scr_pixelbuf)[ offset + 1 ] +=          (0x0f) << 4; // a
-        //virtual_scr_pixelbuf[ offset + 0 ] = 0xff;
-        //virtual_scr_pixelbuf[ offset + 1 ] = 0xff;
+            const unsigned int offset = ( this->virtual_scr_width * 2 * y ) + x * 2;
+
+            (*virtual_scr_pixelbuf)[ offset + 0 ]  =  rand() % 0x0f;       // b
+            (*virtual_scr_pixelbuf)[ offset + 0 ] += (rand() % 0x0f) << 5; // g
+            (*virtual_scr_pixelbuf)[ offset + 1 ]  =  rand() % 0x0f;       // r
+            
+            //(*virtual_scr_pixelbuf)[ offset + 1 ] += (0x0f) << 4; // a
+            //virtual_scr_pixelbuf[ offset + 0 ] = 0xff;
+            //virtual_scr_pixelbuf[ offset + 1 ] = 0xff;
+        }
+    }   
+    // If performance test is not enabled, then continue emulating a terminal. 
+    else {
+        this->terminal_tick();
     }
-    
-
-    //this->terminal_tick();
 
     SDL_UpdateTexture
     (

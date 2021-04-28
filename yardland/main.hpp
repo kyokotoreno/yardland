@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <unistd.h>
 
 //#include <libsdl2-gui/libsdl2-gui.hpp>
 #include <SDL2/SDL.h>

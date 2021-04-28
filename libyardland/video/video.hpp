@@ -15,6 +15,9 @@ public:
     void OnRender();
     void OnEvent(SDL_Event* e);
     void terminal_tick();
+
+    void set_argperformancetest(bool _ArgPerformanceTest = true);
+
 private:
     SDL_Texture* virtual_scr_texture;
 
@@ -27,6 +30,8 @@ private:
 
     std::vector <Uint8>* virtual_scr_pixelbuf;
     std::vector <char>* terminal_buffer;
+
+    bool ArgPerformanceTest;
 
     enum RGBMasks
     {
