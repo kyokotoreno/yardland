@@ -1,12 +1,7 @@
 /**
  * @file memory.hpp
  * @author Joseph Hans Diaz Gonzalez <eliotvonecklie@gmail.com>
- * @brief Memory Banks template class
- * @version 0.3.0-alpha.1
  * @date 2021-03-27
- *
- * @copyright Copyright (c) 2021
- *
  */
 
 #pragma once
@@ -17,6 +12,7 @@
 
 /**
  * @brief Memory Bank Class.
+ * @version v0.1.0
  */
 class Memory
 {

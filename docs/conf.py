@@ -22,7 +22,7 @@ copyright = '2021, Joseph Hans Diaz Gonzalez'
 author = 'Joseph Hans Diaz Gonzalez'
 
 # The full version, including alpha/beta/rc tags
-release = 'v0.3.0'
+release = 'v0.1.0'
 
 
 # -- General configuration ---------------------------------------------------
