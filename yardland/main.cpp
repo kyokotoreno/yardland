@@ -15,12 +15,14 @@ int main(int argc, char** argv)
 
     std::cout << "[yardland/main.cpp:16] INFO Yardland Emulator v0.3.0" << std::endl;
     //std::cout << "[yardland/main.cpp:17] INFO Loading Firmware file \"firmware.bin\"" << std::endl;
-    
+
     binary_file firmware_file;
 
     //firmware_file.load("firmware.bin");
 
     video_adapter = new video();
+
+    video_adapter->set_argperformancetest();
 
     unsigned int frames = 0;
     Uint64 start = SDL_GetPerformanceCounter();
@@ -44,7 +46,7 @@ int main(int argc, char** argv)
         if(seconds > 2.0)
         {
             std::cout
-                << "[yardland/main.cpp:44] INFO Performance: " 
+                << "[yardland/main.cpp:44] INFO Performance: "
                 << frames << " frames in "
                 << std::setprecision(1) << std::fixed << seconds << " seconds = "
                 << std::setprecision(1) << std::fixed << frames / seconds << " FPS ("
