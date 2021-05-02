@@ -12,6 +12,10 @@ Pull requests are welcome. For major changes, please open an issue first to disc
 
 Please make sure to update tests as appropriate.
 
+## Changelog
+
+You can find the changelog in the file [CHANGELOG.md](https://github.com/EliotVonEcklie/libyardland/blob/main/CHANGELOG.md).
+
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
