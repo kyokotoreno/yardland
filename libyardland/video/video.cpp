@@ -73,13 +73,13 @@ void video::OnRender()
             (*virtual_scr_pixelbuf)[ offset + 0 ]  =  rand() % 0x0f;       // b
             (*virtual_scr_pixelbuf)[ offset + 0 ] += (rand() % 0x0f) << 5; // g
             (*virtual_scr_pixelbuf)[ offset + 1 ]  =  rand() % 0x0f;       // r
-            
+
             //(*virtual_scr_pixelbuf)[ offset + 1 ] += (0x0f) << 4; // a
             //virtual_scr_pixelbuf[ offset + 0 ] = 0xff;
             //virtual_scr_pixelbuf[ offset + 1 ] = 0xff;
         }
-    }   
-    // If performance test is not enabled, then continue emulating a terminal. 
+    }
+    // If performance test is not enabled, then continue emulating a terminal.
     else {
         this->terminal_tick();
     }
@@ -143,5 +143,11 @@ void video::terminal_tick()
         screen_x = 0;
         screen_y += 8;
     }
+    return;
+}
+
+void video::set_argperformancetest(bool _ArgPerformanceTest)
+{
+    this->ArgPerformanceTest = _ArgPerformanceTest;
     return;
 }
