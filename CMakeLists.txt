@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
-option(YARDLAND_GFXSUPPORT "Compile with Graphics support (Requires SDL2, SDL2_gfx, SDL2_ttf and libsdl2-gui)." ON)
+option(YARDLAND_GFXSUPPORT "Compile with Graphics support (Requires SDL2, SDL2_ttf)." ON)
 option(YARDLAND_BUILDDOCS "Compile documentation." OFF)
 
 include(FetchContent)
@@ -32,8 +32,6 @@ endif()
 if(${YARDLAND_GFXSUPPORT})
     find_package(SDL2 REQUIRED)
     find_package(SDL2_ttf REQUIRED)
-
-    CPMAddPackage("gh:H4ck-Software/libsdl2-gui#main@0.1.0")
 endif()
 
 add_library( yardland SHARED
@@ -44,7 +42,7 @@ add_library( yardland SHARED
     ${PROJECT_SOURCE_DIR}/libyardland/video/video.cpp
     #${PROJECT_SOURCE_DIR}/libyardland/mmio/mmio-6551.cpp
     #${PROJECT_SOURCE_DIR}/libyardland/mmu/mmu-tlb.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/memory/memory.tpp
+    ${PROJECT_SOURCE_DIR}/libyardland/memory/memory.cpp
     ${PROJECT_SOURCE_DIR}/libyardland/binary-file/binary-file.cpp
     #${PROJECT_SOURCE_DIR}/libyardland/utils/buffers/fifo.cpp
 )
