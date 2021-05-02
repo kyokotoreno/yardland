@@ -7,7 +7,7 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-# Matches all CPP source files.
+# Match all CPP source files.
 [*.?pp]
 # Set default charset
 charset = utf-8
@@ -21,3 +21,7 @@ indent_size = 4
 # 4 space indentation
 indent_style = space
 indent_size = 4
+
+# Match all Markdown files
+[*.md]
+trim_trailing_whitespace = false
