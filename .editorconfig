@@ -27,3 +27,9 @@ indent_size = 4
 trim_trailing_whitespace = false
 indent_style = space
 indent_size = 2
+
+# Match all YAML files
+[*.yml]
+trim_trailing_whitespace = false
+indent_style = space
+indent_size = 2
