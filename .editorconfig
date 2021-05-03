@@ -25,3 +25,5 @@ indent_size = 4
 # Match all Markdown files
 [*.md]
 trim_trailing_whitespace = false
+indent_style = space
+indent_size = 2
