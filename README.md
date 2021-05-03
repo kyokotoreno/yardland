@@ -16,6 +16,10 @@ You can find the contribution guidelines in the file [CONTRIBUTING.md](https://g
 
 You can find the changelog in the file [CHANGELOG.md](https://github.com/EliotVonEcklie/libyardland/blob/main/CHANGELOG.md).
 
+## Code of Conduct
+
+Please note that this project is released with a [Contributor Code of Conduct](https://github.com/EliotVonEcklie/libyardland/blob/main/CODE_OF_CONDUCT.md). By participating in this project you agree to abide by its terms.
+
 ## License
 
 [MIT](https://choosealicense.com/licenses/mit/)
