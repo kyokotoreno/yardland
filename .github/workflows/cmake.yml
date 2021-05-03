@@ -33,6 +33,9 @@ jobs:
       # Build your program with the given configuration
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
+    - name: Prepare tests
+      run: echo -n -e YARDLANDBIN\\x00\\x00\\x20\\x00\\x00\\x0f\\x00\\x00\\x20\\x10\\x00\\x0f > ${{github.workspace}}/build/binaryfiletest_simpleparsing.bin
+
     - name: Test
       working-directory: ${{github.workspace}}/build
       # Execute tests defined by the CMake configuration.  
