@@ -10,7 +10,7 @@ WIP.
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-Please make sure to update tests as appropriate.
+You can find the contribution guidelines in the file [CONTRIBUTING.md](https://github.com/EliotVonEcklie/libyardland/blob/main/CONTRIBUTING.md)
 
 ## Changelog
 
