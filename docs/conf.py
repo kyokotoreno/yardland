@@ -22,7 +22,7 @@ copyright = '2021, Joseph Hans Diaz Gonzalez'
 author = 'Joseph Hans Diaz Gonzalez'
 
 # The full version, including alpha/beta/rc tags
-release = 'v0.3.0-alpha.1'
+release = 'v0.1.0'
 
 
 # -- General configuration ---------------------------------------------------
@@ -48,12 +48,21 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_material'
+html_theme_options = {
+    'repo_url' : 'https://github.com/EliotVonEcklie/libyardland/',
+    'repo_name' : 'Yardland',
+    'repo_type' : 'github'
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = []
 
 # Breathe Configuration
 breathe_default_project = "Yardland"
+breathe_domain_by_extension = {
+    "hpp" : "cpp",
+    "cpp" : "cpp",
+    }

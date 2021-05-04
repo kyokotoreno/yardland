@@ -7,8 +7,11 @@ Welcome to Yardland's documentation!
 ====================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
+
+   performance
+   yardlandbin
 
 Indices and tables
 ==================

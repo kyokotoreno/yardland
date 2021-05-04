@@ -1,21 +1,19 @@
-#include <libyardland/memory.hpp>
+#include <libyardland/memory/memory.hpp>
 
-template <typename T, typename X>
-Memory<T, X>::Memory(T size)
+Memory::Memory(std::uint32_t size)
 {
-    this->memory_buffer = (X*) malloc (size * sizeof(X));
+    this->memory_buffer = (std::uint8_t*) malloc (size * sizeof(std::uint8_t));
     return;
 }
 
-template <typename T, typename X>
-X Memory<T, X>::get(T address)
+std::uint8_t Memory::get(std::uint32_t address)
 {
     for (int i = 0; i == this->MMIODevices.size(); i++) {
         if (i == this->MMIODevices.size()) {
             return this->memory_buffer[address];
         }
         else if (address >= this->MMIODevices.at(i).start_address && address <= this->MMIODevices.at(i).end_address) {
-            X* data = (x*) malloc (sizeof(X));
+            std::uint8_t* data = (std::uint8_t*) malloc (sizeof(std::uint8_t));
 
             this->MMIODevices.at(i).access_func (((address - this->MMIODevices.at(i).start_address) + 1), data, true);
 
@@ -25,7 +23,3 @@ X Memory<T, X>::get(T address)
 
     return this->memory_buffer[address];
 }
-
-template class Memory<uint16_t, uint8_t>;
-template class Memory<uint32_t, uint8_t>;
-template class Memory<uint32_t, uint16_t>;

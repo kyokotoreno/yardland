@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <string>
 
-#include <yardland/mmio-6551.hpp>
+#include <libyardland/mmio/mmio-6551.hpp>
 
 MMIO_6551 t6551;
 
@@ -10,14 +10,14 @@ TEST(MMIO6551Test, BasicInputOutput)
     std::string test_str = "Hello, World!";
     std::string test_out_str;
 
-    for (int i = 0; i < test_str.size(); i++) {
+    for (std::__cxx11::basic_string<char>::size_type i = 0; i < test_str.size(); i++) {
         t6551.access(0b00, (uint8_t*) & test_str.c_str()[i], false);
     }
 
     do {
         uint8_t cur_char;
 
-        cur_char = t6551.pop_output();
+        cur_char = t6551.output_fifo.pop();
 
         test_out_str.push_back((char)cur_char);
 
