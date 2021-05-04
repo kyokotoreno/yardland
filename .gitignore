@@ -5,5 +5,7 @@ build/
 # Ignore Visual Studio and VS Code Files
 
 .vs/
+CMakeSettings.json
+out/
 .vscode/
 *.code-workspace
