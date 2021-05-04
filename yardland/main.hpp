@@ -2,7 +2,10 @@
 
 #include <iostream>
 #include <iomanip>
-#include <unistd.h>
+
+#ifdef UNIX
+    #include <unistd.h>
+#endif /*UNIX*/
 
 #include <SDL2/SDL.h>
 

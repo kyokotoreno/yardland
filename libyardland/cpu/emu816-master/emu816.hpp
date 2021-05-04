@@ -125,8 +125,8 @@ private:
 	// Pull a word from the stack
 	INLINE static Word pullWord()
 	{
-		register Byte	l = pullByte();
-		register Byte	h = pullByte();
+		Byte	l = pullByte();
+		Byte	h = pullByte();
 
 		return (join(l, h));
 	}
@@ -134,7 +134,7 @@ private:
 	// Absolute - a
 	INLINE static Addr am_absl()
 	{
-		register Addr	ea = join (dbr, getWord(bank(pbr) | pc));
+		Addr	ea = join (dbr, getWord(bank(pbr) | pc));
 
 		BYTES(2);
 		cycles += 2;
@@ -144,7 +144,7 @@ private:
 	// Absolute Indexed X - a,X
 	INLINE static Addr am_absx()
 	{
-		register Addr	ea = join(dbr, getWord(bank(pbr) | pc)) + x.w;
+		Addr	ea = join(dbr, getWord(bank(pbr) | pc)) + x.w;
 
 		BYTES(2);
 		cycles += 2;
@@ -154,7 +154,7 @@ private:
 	// Absolute Indexed Y - a,Y
 	INLINE static Addr am_absy()
 	{
-		register Addr	ea = join(dbr, getWord(bank(pbr) | pc)) + y.w;
+		Addr	ea = join(dbr, getWord(bank(pbr) | pc)) + y.w;
 
 		BYTES(2);
 		cycles += 2;
@@ -164,7 +164,7 @@ private:
 	// Absolute Indirect - (a)
 	INLINE static Addr am_absi()
 	{
-		register Addr ia = join(0, getWord(bank(pbr) | pc));
+		Addr ia = join(0, getWord(bank(pbr) | pc));
 
 		BYTES(2);
 		cycles += 4;
@@ -174,7 +174,7 @@ private:
 	// Absolute Indexed Indirect - (a,X)
 	INLINE static Addr am_abxi()
 	{
-		register Addr ia = join(pbr, getWord(join(pbr, pc))) + x.w;
+		Addr ia = join(pbr, getWord(join(pbr, pc))) + x.w;
 
 		BYTES(2);
 		cycles += 4;
@@ -194,7 +194,7 @@ private:
 	// Absolute Long Indexed - >a,X
 	INLINE static Addr am_alnx()
 	{
-		register Addr ea = getAddr(join(pbr, pc)) + x.w;
+		Addr ea = getAddr(join(pbr, pc)) + x.w;
 
 		BYTES(3);
 		cycles += 3;
@@ -204,7 +204,7 @@ private:
 	// Absolute Indirect Long - [a]
 	INLINE static Addr am_abil()
 	{
-		register Addr ia = bank(0) | getWord(join(pbr, pc));
+		Addr ia = bank(0) | getWord(join(pbr, pc));
 
 		BYTES(2);
 		cycles += 5;
@@ -385,7 +385,7 @@ private:
 	INLINE static Addr am_sriy()
 	{
 		Byte disp = getByte(join(pbr, pc));
-		register Word ia;
+		Word ia;
 
 		BYTES(1);
 		cycles += 3;
@@ -503,7 +503,7 @@ private:
 		TRACE("ASL");
 
 		if (e || p.f_m) {
-			register Byte data = getByte(ea);
+			Byte data = getByte(ea);
 
 			setc(data & 0x80);
 			setnz_b(data <<= 1);
@@ -511,7 +511,7 @@ private:
 			cycles += 4;
 		}
 		else {
-			register Word data = getWord(ea);
+			Word data = getWord(ea);
 
 			setc(data & 0x8000);
 			setnz_w(data <<= 1);
@@ -581,7 +581,7 @@ private:
 		TRACE("BIT");
 
 		if (e || p.f_m) {
-			register Byte data = getByte(ea);
+			Byte data = getByte(ea);
 
 			setz((a.b & data) == 0);
 			setn(data & 0x80);
@@ -589,7 +589,7 @@ private:
 			cycles += 2;
 		}
 		else {
-			register Word data = getWord(ea);
+			Word data = getWord(ea);
 
 			setz((a.w & data) == 0);
 			setn(data & 0x8000);
@@ -604,12 +604,12 @@ private:
 		TRACE("BIT");
 
 		if (e || p.f_m) {
-			register Byte data = getByte(ea);
+			Byte data = getByte(ea);
 
 			setz((a.b & data) == 0);
 		}
 		else {
-			register Word data = getWord(ea);
+			Word data = getWord(ea);
 
 			setz((a.w & data) == 0);
 		}
@@ -859,14 +859,14 @@ private:
 		TRACE("DEC");
 
 		if (e || p.f_m) {
-			register Byte data = getByte(ea);
+			Byte data = getByte(ea);
 
 			setByte(ea, --data);
 			setnz_b(data);
 			cycles += 4;
 		}
 		else {
-			register Word data = getWord(ea);
+			Word data = getWord(ea);
 
 			setWord(ea, --data);
 			setnz_w(data);
@@ -929,14 +929,14 @@ private:
 		TRACE("INC");
 
 		if (e || p.f_m) {
-			register Byte data = getByte(ea);
+			Byte data = getByte(ea);
 
 			setByte(ea, ++data);
 			setnz_b(data);
 			cycles += 4;
 		}
 		else {
-			register Word data = getWord(ea);
+			Word data = getWord(ea);
 
 			setWord(ea, ++data);
 			setnz_w(data);
@@ -1058,7 +1058,7 @@ private:
 		TRACE("LSR");
 
 		if (e || p.f_m) {
-			register Byte data = getByte(ea);
+			Byte data = getByte(ea);
 
 			setc(data & 0x01);
 			setnz_b(data >>= 1);
@@ -1066,7 +1066,7 @@ private:
 			cycles += 4;
 		}
 		else {
-			register Word data = getWord(ea);
+			Word data = getWord(ea);
 
 			setc(data & 0x0001);
 			setnz_w(data >>= 1);
@@ -1332,8 +1332,8 @@ private:
 		TRACE("ROL");
 
 		if (e || p.f_m) {
-			register Byte data = getByte(ea);
-			register Byte carry = p.f_c ? 0x01 : 0x00;
+			Byte data = getByte(ea);
+			Byte carry = p.f_c ? 0x01 : 0x00;
 
 			setc(data & 0x80);
 			setnz_b(data = (data << 1) | carry);
@@ -1341,8 +1341,8 @@ private:
 			cycles += 4;
 		}
 		else {
-			register Word data = getWord(ea);
-			register Word carry = p.f_c ? 0x0001 : 0x0000;
+			Word data = getWord(ea);
+			Word carry = p.f_c ? 0x0001 : 0x0000;
 
 			setc(data & 0x8000);
 			setnz_w(data = (data << 1) | carry);
@@ -1356,13 +1356,13 @@ private:
 		TRACE("ROL");
 
 		if (e || p.f_m) {
-			register Byte carry = p.f_c ? 0x01 : 0x00;
+			Byte carry = p.f_c ? 0x01 : 0x00;
 
 			setc(a.b & 0x80);
 			setnz_b(a.b = (a.b << 1) | carry);
 		}
 		else {
-			register Word carry = p.f_c ? 0x0001 : 0x0000;
+			Word carry = p.f_c ? 0x0001 : 0x0000;
 
 			setc(a.w & 0x8000);
 			setnz_w(a.w = (a.w << 1) | carry);
@@ -1375,8 +1375,8 @@ private:
 		TRACE("ROR");
 
 		if (e || p.f_m) {
-			register Byte data = getByte(ea);
-			register Byte carry = p.f_c ? 0x80 : 0x00;
+			Byte data = getByte(ea);
+			Byte carry = p.f_c ? 0x80 : 0x00;
 
 			setc(data & 0x01);
 			setnz_b(data = (data >> 1) | carry);
@@ -1384,8 +1384,8 @@ private:
 			cycles += 4;
 		}
 		else {
-			register Word data = getWord(ea);
-			register Word carry = p.f_c ? 0x8000 : 0x0000;
+			Word data = getWord(ea);
+			Word carry = p.f_c ? 0x8000 : 0x0000;
 
 			setc(data & 0x0001);
 			setnz_w(data = (data >> 1) | carry);
@@ -1399,13 +1399,13 @@ private:
 		TRACE("ROR");
 
 		if (e || p.f_m) {
-			register Byte carry = p.f_c ? 0x80 : 0x00;
+			Byte carry = p.f_c ? 0x80 : 0x00;
 
 			setc(a.b & 0x01);
 			setnz_b(a.b = (a.b >> 1) | carry);
 		}
 		else {
-			register Word carry = p.f_c ? 0x8000 : 0x0000;
+			Word carry = p.f_c ? 0x8000 : 0x0000;
 
 			setc(a.w & 0x0001);
 			setnz_w(a.w = (a.w >> 1) | carry);
@@ -1648,14 +1648,14 @@ private:
 		TRACE("TRB");
 
 		if (e || p.f_m) {
-			register Byte data = getByte(ea);
+			Byte data = getByte(ea);
 
 			setByte(ea, data & ~a.b);
 			setz((a.b & data) == 0);
 			cycles += 4;
 		}
 		else {
-			register Word data = getWord(ea);
+			Word data = getWord(ea);
 
 			setWord(ea, data & ~a.w);
 			setz((a.w & data) == 0);
@@ -1668,14 +1668,14 @@ private:
 		TRACE("TSB");
 
 		if (e || p.f_m) {
-			register Byte data = getByte(ea);
+			Byte data = getByte(ea);
 
 			setByte(ea, data | a.b);
 			setz((a.b & data) == 0);
 			cycles += 4;
 		}
 		else {
-			register Word data = getWord(ea);
+			Word data = getWord(ea);
 
 			setWord(ea, data | a.w);
 			setz((a.w & data) == 0);

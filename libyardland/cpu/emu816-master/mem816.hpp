@@ -39,13 +39,13 @@ public:
 	// Fetch a byte from memory (Modified to forward accesses to yardland's memory interface).
 	INLINE static Byte getByte(Addr ea)
 	{
-
+        return 0;
 	}
 
 	// Fetch a word from memory
 	INLINE static Word getWord(Addr ea)
 	{
-			return (join(getByte(ea + 0), getByte(ea + 1)));
+        return (join(getByte(ea + 0), getByte(ea + 1)));
 	}
 
 	// Fetch a long address from memory
