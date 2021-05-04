@@ -4,7 +4,6 @@
 #include <vector>
 
 #include <SDL2/SDL.h>
-#include <font8x8/font8x8_basic.hpp>
 
 class video
 {

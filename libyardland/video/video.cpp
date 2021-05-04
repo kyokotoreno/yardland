@@ -1,5 +1,7 @@
 #include <libyardland/video/video.hpp>
 
+#include <font8x8/font8x8_basic.hpp>
+
 #define TERMINAL_SCREEN_WIDTH   320
 #define TERMINAL_SCREEN_HEIGHT  200
 #define TERMINAL_COLUMNS         40
