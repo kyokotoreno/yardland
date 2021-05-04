@@ -14,7 +14,8 @@ public:
     int load(std::string filename);
     void save();
 
-    std::uint8_t * get_binbuffer_ptr();
+    std::uint8_t* get_cbin_buffer_ptr();
+    std::uint8_t* get_dbin_buffer_ptr();
 
     std::uint32_t get_cload_address();
     std::uint32_t get_dload_address();
@@ -30,7 +31,8 @@ private:
 
     std::fstream filehandle;
 
-    std::uint8_t * binbuffer;
+    std::uint8_t* cbin_buffer;
+    std::uint8_t* dbin_buffer;
 
     std::uint32_t cload_address;
     std::uint32_t dload_address;
