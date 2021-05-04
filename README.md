@@ -1,33 +1,24 @@
 # Yardland
 
-Libyardland is a C++ library for dealing with old computer system emulation, Originally made to emulate systems based on CPUs from the 65xx Architecture.
+Yardland is a C++ 65816-Based Systems emulator.
 
 ## Installation
 
-Use the package manager [CPM](https://github.com/cpm-cmake/CPM.cmake) to install libyardland as a dependency to your project.
-
-```CMake
-cmake_minimum_required(VERSION 3.16)
-
-# create project
-project(MyProject)
-
-# add executable
-add_executable(tests tests.cpp)
-
-# add dependencies
-include(cmake/CPM.cmake)
-CPMAddPackage("gh:H4ck-Software/libyardland@0.3.0")
-
-# link dependencies
-target_link_libraries(tests yardland::libyardland)
-```
+WIP.
 
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-Please make sure to update tests as appropriate.
+You can find the contribution guidelines in the file [CONTRIBUTING.md](https://github.com/EliotVonEcklie/libyardland/blob/main/CONTRIBUTING.md)
+
+## Changelog
+
+You can find the changelog in the file [CHANGELOG.md](https://github.com/EliotVonEcklie/libyardland/blob/main/CHANGELOG.md).
+
+## Code of Conduct
+
+Please note that this project is released with a [Contributor Code of Conduct](https://github.com/EliotVonEcklie/libyardland/blob/main/CODE_OF_CONDUCT.md). By participating in this project you agree to abide by its terms.
 
 ## License
 

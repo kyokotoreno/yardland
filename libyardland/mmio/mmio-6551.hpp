@@ -1,20 +1,19 @@
 /**
  * @file mmio-6551.hpp
  * @author Joseph Hans Diaz Gonzalez <eliotvonecklie@gmail.com>
- * @brief 
- * @version 0.1.0
  * @date 2021-03-28
- * 
- * @copyright Copyright (c) 2021
- * 
  */
 
 #include <cstdint>
 #include <cstdlib>
 
-#include <libyardland/mmio-class.hpp>
+#include <libyardland/mmio/mmio-class.hpp>
 #include <libyardland/utils/buffers/fifo.hpp>
 
+/**
+ * @brief MOS 6551 ACIA Class.
+ * @version v0.1.0
+ */
 class MMIO_6551 : MMIOClass
 {
 public:

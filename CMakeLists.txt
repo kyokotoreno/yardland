@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
+option(YARDLAND_GFXSUPPORT "Compile with Graphics support (Requires SDL2, SDL2_ttf)." ON)
+option(YARDLAND_BUILDDOCS "Compile documentation." OFF)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -23,17 +25,26 @@ enable_testing()
 
 include(CPM)
 
-find_package(SDL2 REQUIRED)
-find_package(SDL2_ttf REQUIRED)
-find_package(SDL2_gfx REQUIRED)
+if(UNIX)
+    add_compile_definitions(UNIX)
+endif()
 
-CPMAddPackage("gh:H4ck-Software/libsdl2-gui#main@0.1.0")
+if(${YARDLAND_GFXSUPPORT})
+    find_package(SDL2 REQUIRED)
+    find_package(SDL2_ttf REQUIRED)
+endif()
 
 add_library( yardland SHARED
-    ${PROJECT_SOURCE_DIR}/libyardland/mmu-tlb.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/memory.tpp
+    #${PROJECT_SOURCE_DIR}/libyardland/cpu/cpu-65816.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/cpu/emu816-master/emu816.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/cpu/emu816-master/mem816.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/cpu/emu816-master/wdc816.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/video/video.cpp
+    #${PROJECT_SOURCE_DIR}/libyardland/mmio/mmio-6551.cpp
+    #${PROJECT_SOURCE_DIR}/libyardland/mmu/mmu-tlb.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/memory/memory.cpp
     ${PROJECT_SOURCE_DIR}/libyardland/binary-file/binary-file.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/utils/buffers/fifo.cpp
+    #${PROJECT_SOURCE_DIR}/libyardland/utils/buffers/fifo.cpp
 )
 
 target_include_directories( yardland
@@ -41,9 +52,7 @@ target_include_directories( yardland
 )
 
 target_link_libraries( yardland
-    SDL2::GFX
     SDL2::TTF
-    SDL2::GUI
     SDL2::Core
 )
 
@@ -51,13 +60,19 @@ add_library(yardland::libyardland ALIAS yardland)
 
 add_executable( yardland-bin
     ${PROJECT_SOURCE_DIR}/yardland/main.cpp
-    # ${PROJECT_SOURCE_DIR}/yardland/mmio-6551.cpp
-    # ${PROJECT_SOURCE_DIR}/yardland/cpu-65816/cpu-65816.cpp
 )
 
-set_target_properties( yardland-bin PROPERTIES
-    OUTPUT_NAME yardland
-)
+# Set executable name
+
+if(WIN32)
+    set_target_properties( yardland-bin PROPERTIES
+        OUTPUT_NAME yardland.exe
+    )
+else()
+    set_target_properties( yardland-bin PROPERTIES
+        OUTPUT_NAME yardland
+    )
+endif()
 
 target_include_directories( yardland-bin
     PUBLIC ${PROJECT_SOURCE_DIR}
@@ -70,22 +85,30 @@ target_link_libraries( yardland-bin
 
 add_executable( yardland::yardland ALIAS yardland-bin)
 
-add_executable( yardland-bin-test
-    ${PROJECT_SOURCE_DIR}/yardland/cpu-65816/cpu-65816.test.cpp
-)
+##
+## Tests
+##
 
-target_link_libraries( yardland-bin-test
-    yardland::libyardland
-    gtest_main
-)
-
-add_executable( yardland-test
+add_executable( yardland-tests
+    ${PROJECT_SOURCE_DIR}/libyardland/cpu/cpu-65816.test.cpp
+    #${PROJECT_SOURCE_DIR}/libyardland/mmio/mmio-6551.test.cpp
     ${PROJECT_SOURCE_DIR}/libyardland/binary-file/binary-file.test.cpp
 )
 
-target_link_libraries( yardland-test
+target_link_libraries( yardland-tests
     yardland::libyardland
     gtest_main
 )
 
-add_subdirectory(docs)
+add_test(
+    NAME yardland-tests
+    COMMAND yardland-tests
+)
+
+##
+## Compile Documentation
+##
+
+if(${YARDLAND_BUILDDOCS})
+    add_subdirectory(docs)
+endif()
