@@ -1,13 +1,13 @@
 //==============================================================================
-//                                          .ooooo.     .o      .ooo   
-//                                         d88'   `8. o888    .88'     
-//  .ooooo.  ooo. .oo.  .oo.   oooo  oooo  Y88..  .8'  888   d88'      
-// d88' `88b `888P"Y88bP"Y88b  `888  `888   `88888b.   888  d888P"Ybo. 
-// 888ooo888  888   888   888   888   888  .8'  ``88b  888  Y88[   ]88 
-// 888    .o  888   888   888   888   888  `8.   .88P  888  `Y88   88P 
-// `Y8bod8P' o888o o888o o888o  `V88V"V8P'  `boood8'  o888o  `88bod8'  
-//                                                                    
-// A Portable C++ WDC 65C816 Emulator  
+//                                          .ooooo.     .o      .ooo
+//                                         d88'   `8. o888    .88'
+//  .ooooo.  ooo. .oo.  .oo.   oooo  oooo  Y88..  .8'  888   d88'
+// d88' `88b `888P"Y88bP"Y88b  `888  `888   `88888b.   888  d888P"Ybo.
+// 888ooo888  888   888   888   888   888  .8'  ``88b  888  Y88[   ]88
+// 888    .o  888   888   888   888   888  `8.   .88P  888  `Y88   88P
+// `Y8bod8P' o888o o888o o888o  `V88V"V8P'  `boood8'  o888o  `88bod8'
+//
+// A Portable C++ WDC 65C816 Emulator
 //------------------------------------------------------------------------------
 // Copyright (C),2016 Andrew John Jacobs
 // All rights reserved.
@@ -22,7 +22,7 @@
 #ifndef EMU816_H
 #define EMU816_H
 
-#include <libyardland/cpu/emu816-master/mem816.hpp>
+#include <libyardland/cpu/mem816.hpp>
 
 #include <stdlib.h>
 
@@ -38,7 +38,7 @@
 # define ENDL()
 #endif
 
-// Defines the WDC 65C816 emulator. 
+// Defines the WDC 65C816 emulator.
 class emu816 :
 	public mem816
 {
@@ -455,7 +455,7 @@ private:
 		if (e || p.f_m) {
 			Byte	data = getByte(ea);
 			Word	temp = a.b + data + p.f_c;
-			
+
 			if (p.f_d) {
 				if ((temp & 0x0f) > 0x09) temp += 0x06;
 				if ((temp & 0xf0) > 0x90) temp += 0x60;
@@ -476,7 +476,7 @@ private:
 				if ((temp & 0x0f00) > 0x0900) temp += 0x0600;
 				if ((temp & 0xf000) > 0x9000) temp += 0x6000;
 			}
-			
+
 			setc(temp & 0x10000);
 			setv((~(a.w ^ data)) & (a.w ^ temp) & 0x8000);
 			setnz_w(a.w = (Word)temp);
@@ -1455,7 +1455,7 @@ private:
 		if (e || p.f_m) {
 			Byte	data = ~getByte(ea);
 			Word	temp = a.b + data + p.f_c;
-			
+
 			if (p.f_d) {
 				if ((temp & 0x0f) > 0x09) temp += 0x06;
 				if ((temp & 0xf0) > 0x90) temp += 0x60;

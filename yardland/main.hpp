@@ -11,4 +11,4 @@
 
 #include <libyardland/video/video.hpp>
 #include <libyardland/cpu/cpu-65816.hpp>
-#include <libyardland/binary-file/binary-file.hpp>
+#include <libyardland/rom-loader/rom-loader.hpp>
