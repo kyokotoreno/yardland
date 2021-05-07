@@ -1,0 +1,14 @@
+[yardland]
+file = "yardland_rom"
+version = "0.1.0"
+[yardland.rom]
+type = "binary"
+filename = "testfirmware.bin"
+[[yardland.rom.segments]]
+offset = 0
+name = "data"
+load_address = 0x1000
+[[yardland.rom.segments]]
+offset = 16
+name = "code"
+load_address = 0xE000

@@ -2,16 +2,21 @@ cmake_minimum_required(VERSION 3.16)
 
 project(yardland VERSION 0.3.0 LANGUAGES CXX)
 
+if(UNIX)
+    add_compile_definitions(UNIX)
+    set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+elseif(WIN32)
+    add_compile_definitions(WIN32)
+    if(MSVC)
+        add_compile_definitions(MSVC)
+    endif()
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-if(UNIX)
-    set(CMAKE_CXX_FLAGS "-Wall -Wextra")
-endif()
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules ${CMAKE_MODULE_PATH})
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
-
-option(YARDLAND_GFXSUPPORT "Compile with Graphics support (Requires SDL2, SDL2_ttf)." ON)
 option(YARDLAND_BUILDDOCS "Compile documentation." OFF)
 
 include(FetchContent)
@@ -27,33 +32,37 @@ include(GoogleTest)
 
 enable_testing()
 
-include(CPM)
-
-if(UNIX)
-    add_compile_definitions(UNIX)
-elseif(WIN32)
-    add_compile_definitions(WIN32)
-    if(MSVC)
-        add_compile_definitions(MSVC)
-    endif()
-endif()
-
-if(${YARDLAND_GFXSUPPORT})
-    find_package(SDL2 REQUIRED)
-    find_package(SDL2_ttf REQUIRED)
-endif()
+find_package(SDL2 REQUIRED)
+find_package(SDL2_ttf REQUIRED)
 
 add_library( yardland STATIC
-    #${PROJECT_SOURCE_DIR}/libyardland/cpu/cpu-65816.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/cpu/emu816-master/emu816.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/cpu/emu816-master/mem816.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/cpu/emu816-master/wdc816.cpp
+
+    # 65816 CPU
+
+    ${PROJECT_SOURCE_DIR}/libyardland/cpu/mem816.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/cpu/wdc816.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/cpu/emu816.cpp
+
+    # Zinc Video Adapter
+
     ${PROJECT_SOURCE_DIR}/libyardland/video/video.cpp
-    #${PROJECT_SOURCE_DIR}/libyardland/mmio/mmio-6551.cpp
-    #${PROJECT_SOURCE_DIR}/libyardland/mmu/mmu-tlb.cpp
+
+    # Zinc MMU
+
+    ${PROJECT_SOURCE_DIR}/libyardland/zmmu/zmmu.cpp
+    ${PROJECT_SOURCE_DIR}/libyardland/zmmu/zmmu-tlb.cpp
+
+    # Memory
+
     ${PROJECT_SOURCE_DIR}/libyardland/memory/memory.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/binary-file/binary-file.cpp
-    #${PROJECT_SOURCE_DIR}/libyardland/utils/buffers/fifo.cpp
+
+    # Rom Loader
+
+    ${PROJECT_SOURCE_DIR}/libyardland/rom-loader/rom-loader.cpp
+
+    # FIFO Buffer
+
+    ${PROJECT_SOURCE_DIR}/libyardland/buffers/fifo.cpp
 )
 
 target_include_directories( yardland
@@ -89,13 +98,26 @@ target_link_libraries( yardland-bin
 add_executable(yardland::yardland ALIAS yardland-bin)
 
 ##
+## Compile Documentation
+##
+
+if(${YARDLAND_BUILDDOCS})
+    add_subdirectory(docs)
+endif()
+
+##
 ## Tests
 ##
 
 add_executable( yardland-tests
+
+    # 65816 CPU
+
     ${PROJECT_SOURCE_DIR}/libyardland/cpu/cpu-65816.test.cpp
-    #${PROJECT_SOURCE_DIR}/libyardland/mmio/mmio-6551.test.cpp
-    ${PROJECT_SOURCE_DIR}/libyardland/binary-file/binary-file.test.cpp
+
+    # Rom Loader
+
+    ${PROJECT_SOURCE_DIR}/libyardland/rom-loader/rom-loader.test.cpp
 )
 
 target_link_libraries( yardland-tests
@@ -107,11 +129,3 @@ add_test(
     NAME yardland-tests
     COMMAND yardland-tests
 )
-
-##
-## Compile Documentation
-##
-
-if(${YARDLAND_BUILDDOCS})
-    add_subdirectory(docs)
-endif()
