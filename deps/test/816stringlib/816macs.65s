@@ -1,0 +1,778 @@
+;================================================================================
+;
+;W65C816S INSTRUCTION MACROS
+;
+;	————————————————————————————————————————————————————————————————————————
+;	These macros implement the STP & WAI W65C02 instructions, as well as all
+;	W65C816S native mode instructions except WDM, which is effectively a NOP
+;	at this time.  Comments describe the official WDC syntax for all synthe-
+;	sized 65C816-specific instructions.  Addressing mode symbols, such as #,
+;	are not used in the macro invocation, as the macro name implies the add-
+;	ressing mode.
+;
+;	In addition to the synthesis of  65C816-specific  instructions,  several
+;	"convenience" macros are presented that may be used to  change  register
+;	sizes via a convenient mnemonic format.  Other macros synthesize some of
+;	the instructions that exist in x86 & Motorola 6800 &  68000  processors.
+;	Be sure to read the entire file so you don't miss anything.
+;	————————————————————————————————————————————————————————————————————————
+;	Copyright ©2013 by BCS Technology Limited.  All rights reserved.
+;
+;	Permission is hereby granted to use, copy,  modify and  distribute  this
+;	software, provided this copyright notice remains in the source code  and
+;	proper attribution is given.   Redistribution in any form, must be at no
+;	charge to the end user.   This code or any part  thereof, including  any
+;	derivation, MAY NOT be incorporated into any package intended for  sale,
+;	unless written permission to do so has been  granted  by  the  copyright
+;	holder.
+;
+;	THERE IS NO WARRANTY OF ANY KIND WITH THIS SOFTWARE.
+;
+;	While it is believed that all code will perform  as  intended,  the user
+;	assumes all risk in connection with the incorporation of  this  software
+;	into any system.
+;	————————————————————————————————————————————————————————————————————————
+;
+         .if !.ref(_asm24_)    ;if macros haven't been defined...
+;
+;	——————————————————————————————————————————————————————————————————————
+;	_ASM24_ generates a 3-byte, little-endian number from the value passed
+;	to the macro.  For example:
+;
+;	    _asm24_ 1234567
+;
+;	will produce the same results as coding:
+;
+;	    .byte $87,$D6,$12
+;
+;	The maximum size parameter for _ASM24_ is 16,777,215 or $FFFFFF.
+;	——————————————————————————————————————————————————————————————————————
+;
+_asm24_  .macro .ad
+         .byte <.ad,>.ad,.ad >> 16
+         .endm
+;
+brl      .macro .ad            ;BRL <addr>
+.ba      =*+3
+         .byte $82
+         .word .ad-.ba
+         .endm
+;
+cop      .macro .op            ;COP <sig>
+         .if .op > $ff
+             .error "MACRO ERROR: "+%0$+": SIGNATURE OUT OF RANGE"
+         .endif
+         .byte $02,.op
+         .endm
+;
+jmpi     .macro .ad            ;JMP [$ahal]
+         .byte $dc
+         .word .ad
+         .endm
+;
+jml      .macro .ad            ;JML $bbahal
+         .byte $5c
+         _asm24_ .ad
+         .endm
+;
+jsl      .macro .ad            ;JSL $bbahal
+         .byte $22
+         _asm24_ .ad
+         .endm
+;
+jsrx     .macro .ad            ;JSR (<addr>,X)
+         .byte $fc
+         .word .ad
+         .endm
+;
+mvn      .macro .s,.d          ;MVN <sbnk>,<dbnk>
+         .if .s > $ff
+             .error "MACRO ERROR: "+%0$+": SOURCE BANK OUT OF RANGE"
+         .endif
+         .if .d > $ff
+             .error "MACRO ERROR: "+%0$+": DESTINATION BANK OUT OF RANGE"
+         .endif
+         .byte $54,.d,.s
+         .endm
+;
+mvp      .macro .s,.d          ;MVP <sbnk>,<dbnk>
+         .if .s > $ff
+             .error "MACRO ERROR: "+%0$+": SOURCE BANK OUT OF RANGE"
+         .endif
+         .if .d > $ff
+             .error "MACRO ERROR: "+%0$+": DESTINATION BANK OUT OF RANGE"
+         .endif
+         .byte $44,.d,.s
+         .endm
+;
+pea      .macro .op            ;PEA #<operand>
+         .byte $f4
+         .word .op
+         .endm
+;
+pei      .macro .dp            ;PEI <dp>
+         .byte $d4,.dp
+         .endm
+;
+per      .macro .ad            ;PER <addr>
+.ba      =*+3
+         .byte $62
+         .word .ad-.ba
+         .endm
+;
+phb      .macro                ;PHB
+         .byte $8b
+         .endm
+;
+phd      .macro                ;PHD
+         .byte $0b
+         .endm
+;
+phk      .macro                ;PHK
+         .byte $4b
+         .endm
+;
+plb      .macro                ;PLB
+         .byte $ab
+         .endm
+;
+pld      .macro                ;PLD
+         .byte $2b
+         .endm
+;
+rep      .macro .op            ;REP #<pattern>
+         .if .op > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND OUT OF RANGE"
+         .endif
+         .byte $c2,.op
+         .endm
+;
+rtl      .macro                ;RTL
+         .byte $6b
+         .endm
+;
+sep      .macro .op            ;SEP #<pattern>
+         .if .op > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND OUT OF RANGE"
+         .endif
+         .byte $e2,.op
+         .endm
+;
+stp      .macro                ;STP
+         .byte $db
+         .endm
+;
+tcd      .macro                ;TCD
+         .byte $5b
+         .endm
+;
+tcs      .macro                ;TCS
+         .byte $1b
+         .endm
+;
+tdc      .macro                ;TDC
+         .byte $7b
+         .endm
+;
+tsc      .macro                ;TSC
+         .byte $3b
+         .endm
+;
+txy      .macro                ;TXY
+         .byte $9b
+         .endm
+;
+tyx      .macro                ;TYX
+         .byte $bb
+         .endm
+;
+wai      .macro                ;WAI
+         .byte $cb
+         .endm
+;
+xba      .macro                ;XBA
+         .byte $eb
+         .endm
+;
+xce      .macro                ;XCE
+         .byte $fb
+         .endm
+;
+;
+;	PEL Pseudo-Instruction
+;	————————————————————————————————————————————————————————————————————
+;	PEL is an analog of PEA that pushes a  32-bit  little-endian operand
+;	to the stack.  The operand is always resolved to 32 bits, regardless
+;	of actual value.  For example:
+;
+;	    PEL 1
+;
+;	will assemble as:
+;
+;	    PEA #$0001
+;	    PEA #$0000
+;	————————————————————————————————————————————————————————————————————
+;
+pel      .macro .op            ;PEL <operand>
+         .byte $f4
+         .word .op >> 16
+         .byte $f4
+         .word .op & $ffff
+         .endm
+;
+;
+;	Synthesized 16 bit Immediate Mode Instructions
+;	————————————————————————————————————————————————————————————————————
+;	Immediate mode instructions that are able to accept 16 bit  operands
+;	take the form ***W, where *** is the parent 8 bit  instruction.  For
+;	example, ADCW is the 16 bit form of ADC.  The actual macro names are
+;	lower case.   It is the responsibility of the  programmer to  assure
+;	that MPU register sizes have been correctly configured before  using
+;	***W instructions.  For example:
+;
+;	    LONGA                 ;16 bit .A & memory
+;	    LDAW $1234            ;MPU sees $A9 $34 $12 (LDA #$1234)
+;	    SHORTA                ;8 bit .A & memory
+;	    LDAW $1234            ;MPU sees $A9 $34 (LDA #$34) & $12 is
+;	                          ;seen as ORA (??), where ?? is byte
+;	                          ;following the ORA opcode
+;
+;	The macro comment indicates the official WDC assembly language  syn-
+;	tax for the instruction being synthesized.  Operands are resolved to
+;	16 bits regardless of the actual value.
+;	————————————————————————————————————————————————————————————————————
+;
+adcw     .macro .op            ;ADC #<operand>
+         adc #<.op
+         .byte >.op
+         .endm
+;
+andw     .macro .op            ;AND #<operand>
+         and #<.op
+         .byte >.op
+         .endm
+;
+bitw     .macro .op            ;BIT #<operand>
+         bit #<.op
+         .byte >.op
+         .endm
+;         
+cmpw     .macro .op            ;CMP #<operand>
+         cmp #<.op
+         .byte >.op
+         .endm
+;
+cpxw     .macro .op            ;CPX #<operand>
+         cpx #<.op
+         .byte >.op
+         .endm
+;
+cpyw     .macro .op            ;CPY #<operand>
+         cpy #<.op
+         .byte >.op
+         .endm
+;
+eorw     .macro .op            ;EOR #<operand>
+         eor #<.op
+         .byte >.op
+         .endm
+;
+ldaw     .macro .op            ;LDA #<operand>
+         lda #<.op
+         .byte >.op
+         .endm
+;
+ldxw     .macro .op            ;LDX #<operand>
+         ldx #<.op
+         .byte >.op
+         .endm
+;
+ldyw     .macro .op            ;LDY #<operand>
+         ldy #<.op
+         .byte >.op
+         .endm
+;
+oraw     .macro .op            ;ORA #<operand>
+         ora #<.op
+         .byte >.op
+         .endm
+;
+sbcw     .macro .op            ;SBC #<operand>
+         sbc #<.op
+         .byte >.op
+         .endm
+;
+;
+;	Synthesized Absolute Long load/Store Instructions
+;	—————————————————————————————————————————————————————————————————————
+;	Long load/store instructions take the form ***L or ***LX,  the latter
+;	for indexed operations.  *** represents the parent instruction.   The
+;	assembled instruction generates a 24 bit operand to the parent instr-
+;	uction.   The actual macro names are lower case.    The macro comment
+;	indicates the official WDC assembly language syntax for the  instruc-
+;	tion being synthesized.  The bb in the addressing mode symbology rep-
+;	resents the bank number.   The address parameter is processed as a 24
+;	bit value regardless of size.   Hence the instruction LDALX $01 would
+;	be assembled as AF 01 00 00, which disassembles as LDA $000001,X.
+;	—————————————————————————————————————————————————————————————————————
+;
+adcl     .macro .ad            ;ADC $bbahal
+         .byte $6f
+         _asm24_ .ad
+         .endm
+;
+adclx    .macro .ad            ;ADC $bbahal,X
+         .byte $7f
+         _asm24_ .ad
+         .endm
+;
+andl     .macro .ad            ;AND $bbahal
+         .byte $2f
+         _asm24_ .ad
+         .endm
+;
+andlx    .macro .ad            ;AND $bbahal,X
+         .byte $3f
+         _asm24_ .ad
+         .endm
+;
+cmpl     .macro .ad            ;CMP $bbahal
+         .byte $cf
+         _asm24_ .ad
+         .endm
+;
+cmplx    .macro .ad            ;CMP $bbahal,X
+         .byte $df
+         _asm24_ .ad
+         .endm
+;
+eorl     .macro .ad            ;EOR $bbahal
+         .byte $4f
+         _asm24_ .ad
+         .endm
+;
+eorlx    .macro .ad            ;EOR $bbahal,X
+         .byte $5f
+         _asm24_ .ad
+         .endm
+;
+ldal     .macro .ad            ;LDA $bbahal
+         .byte $af
+         _asm24_ .ad
+         .endm
+;
+ldalx    .macro .ad            ;LDA $bbahal,X
+         .byte $bf
+         _asm24_ .ad
+         .endm
+;
+oral     .macro .ad            ;ORA $bbahal
+         .byte $0f
+         _asm24_ .ad
+         .endm
+;
+oralx    .macro .ad            ;ORA $bbahal,X
+         .byte $1f
+         _asm24_ .ad
+         .endm
+;
+sbcl     .macro .ad            ;SBC $bbahal
+         .byte $ef
+         _asm24_ .ad
+         .endm
+;
+sbclx    .macro .ad            ;SBC $bbahal,X
+         .byte $ff
+         _asm24_ .ad
+         .endm
+;
+stal     .macro .ad            ;STA $bbahal
+         .byte $8f
+         _asm24_ .ad
+         .endm
+;
+stalx    .macro .ad            ;STA $bbahal,X
+         .byte $9f
+         _asm24_ .ad
+         .endm
+;
+;
+;	Synthesized Direct Page Indirect Long Load/Store Instructions
+;	————————————————————————————————————————————————————————————————————————
+;	Direct page indirect long load/store instructions take the form ***IL or
+;	***ILY, the latter for indexed-Y operations.   *** represents the parent
+;	instruction, such as ADC.  The 65C816 expects that the instruction oper-
+;	and is the least significant byte of a direct page address that contains
+;	a 24 bit target address.  Hence:
+;
+;	    LDAILY $80
+;
+;	is equivalent to:
+;
+;	    LDA [$80],Y
+;
+;	with $80, $81 & $82 holding the target address.  The instruction:
+;
+;	    LDAIL $FF
+;
+;	is equivalent to:
+;
+;	    LDA [$FF]
+;
+;	resulting in the address in $FF, $100 & $101 being the target.
+;
+;	The actual macro names are lower case.  The macro comment indicates the
+;	official WDC assembly language syntax for the instruction being synthes-
+;	ized.  The macro operand must resolve to an 8 bit value.
+;	————————————————————————————————————————————————————————————————————————
+;
+adcil    .macro .ad            ;ADC [<DP>]
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $67,.ad
+         .endm
+;
+adcily   .macro .ad            ;ADC [<DP>],Y
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $77,.ad
+         .endm
+;
+andil    .macro .ad            ;AND [<DP>]
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $27,.ad
+         .endm
+;
+andily   .macro .ad            ;AND [<DP>],Y
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $37,.ad
+         .endm
+;
+cmpil    .macro .ad            ;CMP [<DP>]
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $c7,.ad
+         .endm
+;
+cmpily   .macro .ad            ;CMP [<DP>],Y
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $d7,.ad
+         .endm
+;
+eoril    .macro .ad            ;EOR [<DP>]
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $47,.ad
+         .endm
+;
+eorily   .macro .ad            ;EOR [<DP>],Y
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $57,.ad
+         .endm
+;
+ldail    .macro .ad            ;LDA [<DP>]
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $a7,.ad
+         .endm
+;
+ldaily   .macro .ad            ;LDA [<DP>],Y
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $b7,.ad
+         .endm
+;
+orail    .macro .ad            ;ORA [<DP>]
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $07,.ad
+         .endm
+;
+oraily   .macro .ad            ;ORA [<DP>],Y
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $17,.ad
+         .endm
+;
+sbcil    .macro .ad            ;SBC [<DP>]
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $e7,.ad
+         .endm
+;
+sbcily   .macro .ad            ;SBC [<DP>],Y
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $f7,.ad
+         .endm
+;
+stail    .macro .ad            ;STA [<DP>]
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $87,.ad
+         .endm
+;
+staily   .macro .ad            ;STA [<DP>],Y
+         .if .ad > $ff
+             .error "MACRO ERROR: "+%0$+": OPERAND NOT DIRECT PAGE"
+         .byte $97,.ad
+         .endm
+;
+;
+;	Synthesized Stack-Based Accumulator Instructions
+;	—————————————————————————————————————————————————————————————————————
+;	Stack-based accumulator instructions take the form ***S or ***SI, the
+;	latter for indexed indirect operations.   *** represents  the  parent
+;	instruction.  For example, LDAS 3 is equivalent to LDA 3,S &  LDASI 5
+;	is the equivalent of LDA (5,S),Y.  The actual macro names  are  lower
+;	case.  The macro comment indicates the official WDC assembly language
+;	syntax for the instruction being synthesized.   Operands must resolve
+;	to 8 bits & are treated as an index relative to the  run  time  stack
+;	pointer.
+;	—————————————————————————————————————————————————————————————————————
+;
+adcs     .macro .of            ;ADC <offset>,S
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $63,.of
+         .endm
+;
+adcsi    .macro .of            ;ADC (<offset>,S),Y
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $73,.of
+         .endm
+;
+ands     .macro .of            ;AND <offset>,S
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $23,.of
+         .endm
+;
+andsi    .macro .of            ;AND (<offset>,S),Y
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $33,.of
+         .endm
+;
+cmps     .macro .of            ;CMP <offset>,S
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $c3,.of
+         .endm
+;
+cmpsi    .macro .of            ;CMP (<offset>,S),Y
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $d3,.of
+         .endm
+;
+eors     .macro .of            ;EOR <offset>,S
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $43,.of
+         .endm
+;
+eorsi    .macro .of            ;EOR (<offset>,S),Y
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $53,.of
+         .endm
+;
+ldas     .macro .of            ;LDA <offset>,S
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $a3,.of
+         .endm
+;
+ldasi    .macro .of            ;LDA (<offset>,S),Y
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $b3,.of
+         .endm
+;
+oras     .macro .of            ;ORA <offset>,S
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $03,.of
+         .endm
+;
+orasi    .macro .of            ;ORA (<offset>,S),Y
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $13,.of
+         .endm
+;
+sbcs     .macro .of            ;SBC <offset>,S
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $e3,.of
+         .endm
+;
+sbcsi    .macro .of            ;SBC (<offset>,S),Y
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $f3,.of
+         .endm
+;
+stas     .macro .of            ;STA <offset>,S
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $83,.of
+         .endm
+;
+stasi    .macro .of            ;STA (<offset>,S),Y
+         .if .of > $ff
+             .error "MACRO ERROR: "+%0$+": OFFSET OUT OF RANGE"
+         .endif
+         .byte $93,.of
+         .endm
+;
+;
+;	Register Size Macros
+;	————————————————————————————————————————————————————————————————————
+;	These macros are a convenient way to change the MPU's register sizes
+;	without having to remember the correct bit pattern for the REP & SEP
+;	instructions.  The assembler itself has no awareness of whether 8 or
+;	16 bit immediate mode operands are to be used.   Therefore, it is up
+;	to the programmer to use the appropriate instructions, & to be aware
+;	at all times of the MPU's register sizes.
+;	————————————————————————————————————————————————————————————————————
+;
+longa    .macro                ;16 bit accumulator & memory
+         .byte $c2,$20
+         .endm
+;
+longr    .macro                ;16 bit all registers
+         .byte $c2,$30
+         .endm
+;
+longx    .macro                ;16 bit index registers
+         .byte $c2,$10
+         .endm
+;
+shorta   .macro                ;8 bit accumulator & memory
+         .byte $e2,$20
+         .endm
+;
+shorti   .macro                ;8 bit index registers
+         .byte $e2,$10
+         .endm
+;
+shortr   .macro                ;8 bit all registers
+         .byte $e2,$30
+         .endm
+;
+shortx   .macro                ;8 bit index registers
+         .byte $e2,$10
+         .endm
+;
+;
+;	BSR: Branch to Subroutine
+;	——————————————————————————————————————————————————————————————————————
+;	This macro synthesizes the BSR instruction implemented in the Motorola
+;	6800 & 68000 microprocessors.  Programs in which subroutines are call-
+;	ed via BSR are fully relocatable,  as the target address is calculated
+;	relative to the program counter at run-time.   The target address must
+;	be within the range of a long relative branch, +$7FFF or -$8000 bytes.
+;	——————————————————————————————————————————————————————————————————————
+;
+bsr      .macro .sr            ;BSR <addr>
+.mib     =$82
+.mip     =$62
+.na      =*+3
+.ra      .set .na+2
+.ba      =.ra+1
+.ra      .set .ra-.na
+.ta      .set .sr-.ba
+         .byte .mip,<.ra,>.ra,.mib,<.ta,>.ta
+         .endm
+;
+;
+;	Synthesized .X & .Y Exchange Instructions
+;	————————————————————————————————————————————————————————————————————————
+;	The following instructions are analogs of the XBA instruction that swaps
+;	the A & B accumulators.   While the two instructions accomplish the same
+;	thing, they differ in how the status register is affected.  Simply stat-
+;	ed, the last letter of the instruction indicates which register will af-
+;	fect the N & Z flags.  Hence the following code will set Z & clear N:
+;
+;	    SHORTX                ;8 bit index
+;	    LDX #$00
+;	    LDY #$80
+;	    XXY                   ;exchange .X with .Y
+;
+;	On the other hand:
+;
+;	    SHORTX
+;	    LDX #$00
+;	    LDY #$80
+;	    XYX                   ;exchange .Y with .X
+;
+;	will set N & clear Z.
+;	————————————————————————————————————————————————————————————————————————
+;
+xxy      .macro                   ;exchange .X with .Y
+         .byte $da,$bb,$7a
+         .endm
+;
+xyx      .macro                   ;exchange .Y with .X
+         .byte $5a,$9b,$fa
+         .endm
+;
+;
+;	Synthesized Supervisor Call Instructions
+;	————————————————————————————————————————————————————————————————————————
+;	The following macros synthesize supervisor call instructions that  exist
+;	in some other microprocessors, such as the Motorola 68000.  A supervisor
+;	call is effectively an indexed software interrupt that is used to invoke
+;	an operating system service.   The 65C816 has this capability, but it is
+;	not formally defined in the assembly language.
+;
+;	The INT macro uses the BRK instruction followed by a signature that  be-
+;	comes the interrupt number.  Valid interrupt numbers range from $00-$FF.
+;	The TRAP macro uses the COP instruction that is also followed by a sign-
+;	ature in the range $00-$7F.  The use of TRAP is preferred for calling an
+;	operating system service API,  as BRK is usually associated with halting
+;	a program for debugging purposes.
+;	————————————————————————————————————————————————————————————————————————
+;
+;	INT supervisor call, similar to the INT <INT_NUM> x86 instruction...
+;
+int      .macro .op            ;INT <int_num>
+         .if .op > $ff
+             .error "MACRO ERROR: "+%0$+": INTERRUPT NUMBER OUT OF RANGE"
+         .endif
+         .byte $00,.op
+         .endm
+;
+;	TRAP supervisor call, similar to the TRAP <TRAP_NUM> 68K instruction...
+;
+trap     .macro .op            ;TRAP <int_num>
+         .if .op > $7f
+             .error "MACRO ERROR: "+%0$+": TRAP NUMBER OUT OF RANGE"
+         .endif
+         .byte $02,.op
+         .endm
+;
+         .endif
+	.end

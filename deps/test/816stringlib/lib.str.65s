@@ -1,0 +1,2958 @@
+;================================================================================
+;
+;strcat: CATENATE CHARACTER STRINGS: strcat STRING1,STRING2
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function attaches STRING2 to the end of STRING1.  STRING2 is unaff-
+;	ected unless it overlaps STRING1.  Processing rules are as follows:
+;
+;	  § All parameters must be pointers to data.
+;
+;	  § STRING1 & STRING2 must each be terminated with a null byte ($00).
+;
+;	  § The combined length of both strings cannot exceed 32767 bytes, not
+;	    including the terminator.
+;
+;	  § STRING1 & STRING2 must be in the same 64KB memory bank.  Neither may
+;	    span into the next bank.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access the strings.
+;
+;	  § STRING2's 1st byte will overwrite STRING1's terminator.
+;
+;	  § A buffer overflow will occur if the combined lengths of both strings
+;	    plus the terminator exceeds the space allocated to STRING1.  It is
+;	    the calling function's responsibility to allocate sufficient space
+;	    to STRING1.
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA STRING2       ;pointer to STRING2
+;	                PEA STRING1       ;pointer to STRING1
+;	                JSR STRCAT        ;execute function
+;
+;	Exit registers: .A: entry value
+;	                .B: entry value
+;	                .X: entry value
+;	                .Y: entry value
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> (1)
+;	                    ||++++—————> entry value
+;	                    |+—————————> 0
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            N-----ZC
+;	            |     ||
+;	            |     |+———> 1: indicates error
+;	            |     +————> 1: bank overlap
+;	            +——————————> 1: string too long
+;
+;	       2) Calling this function with STRING1 & STRING2 pointing to the
+;	          same address is permissible & is functionally equivalent to a
+;	          statement such as A$=A$+A$ in BASIC.
+;
+;	       3) Behavior is undefined if STRING2 points to an address within
+;	          STRING1's space.
+;
+;	       4) This function uses self-modifying code.
+;
+;	Example: PEA S2_PTR         ;pointer to STRING2
+;	         PEA S1_PTR         ;pointer to STRING1
+;	         JSR STRCAT         ;catenate strings
+;	         BCS ERROR
+;	         ---
+;	ERROR    BEQ BNKOVR         ;bank overlap
+;	         BMI TOOLONG        ;string too long
+;	————————————————————————————————————————————————————————————————————————
+;
+strcat   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase            ;workspace index
+;
+;—————————> workspace stack frame start <—————————
+.s1len   =.sfidx               ;STRING1's length
+.sfidx   .= .sfidx+.s_word
+.s2len   =.sfidx               ;STRING2's length
+.sfidx   .= .sfidx+.s_word
+;—————————> workspace stack frame end <—————————
+;
+.s_wsf   =.sfidx-.sfbase       ;stack workspace size
+.w_wsf   =.s_wsf/.s_word       ;stack workspace words
+.sfbase  .= .sfidx
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.s1ptr   =.sfidx               ;STRING1's pointer
+.sfidx   .= .sfidx+.s_word
+.s2ptr   =.sfidx               ;STRING2's pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_stl      ;error flags mask
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_ovl|.sr_car
+         php
+         longr
+         phb
+         phy
+         phx
+         pha
+         .rept .s_word
+           phb
+         .endr
+         pla                   ;set bank for...
+         sta .mvp+.s_byte      ;copy operation
+         sec
+         tsc
+         sbcw .s_wsf           ;create workspace
+         tcs
+         ldas .s2ptr           ;STRING2's pointer
+         tax                   ;now an absolute index
+         ldyw 0                ;byte counter
+         shorta                ;8 bit accumulator
+;
+.0000010 lda $00,x             ;find STRING2's terminator
+         beq .0000020          ;found
+;
+         inx                   ;bump index
+         beq .0000040          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000010          ;okay so far
+;
+         bra .0000040          ;string too long
+;
+.0000020 longa
+         tya                   ;STRING2's length
+         stas .s2len           ;save it
+         ldas .s1ptr           ;STRING1's pointer
+         tax                   ;use as index
+         shorta
+         ldyw 0                ;reset byte counter
+;
+.0000030 lda $00,x             ;find STRING1's terminator
+         beq .0000050          ;found
+;
+         inx                   ;bump index
+         beq .0000040          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000030          ;keep trying
+;
+.0000040 php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate error bits
+         ora #.sr_car          ;set carry bit &...
+         bra .done             ;abort w/error
+;
+.0000050 longa
+         tya                   ;STRING1's length
+         stas .s1len           ;save it
+         clc
+         adcs .s2len           ;STRING2's length
+         bmi .0000060          ;catenated length too long
+;
+         adcs .s1ptr           ;STRING1's pointer
+         bcc .0000070          ;no bank overlap
+;
+         ldaw 0                ;bank overlap error
+;
+.0000060 shorta
+         bra .0000040          ;abort w/error
+;
+.0000070 tay                   ;now copy destination
+         ldas .s2ptr           ;STRING2's pointer
+         adcs .s2len           ;STRING2's length
+         tax                   ;copy source
+         ldas .s2len           ;STRING2's length
+.mvp     mvp 0,0               ;catenate
+         ina                   ;results in $0000, no error
+         shorta
+;
+.done    oras .reg_sr          ;modify SR according...
+         stas .reg_sr          ;to exit status
+         longa
+         clc
+         tsc
+         adcw .s_wsf
+         tcs                   ;discard stack workspace
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;
+;================================================================================
+;
+;strchr: SEARCH STRING FOR CHARACTER: strchr STRING,CHAR
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function searches STRING for the 1st occurrence of character CHAR &
+;	if found, returns a pointer to CHAR's position in STRING or null if CHAR
+;	is not present.  A count of the number of instances of CHAR in STRING is
+;	also returned.  Processing rules are as follows:
+;
+;	  § All parameters must be pointers to data.
+;
+;	  § STRING must be terminated with a null byte ($00).
+;
+;	  § STRING's length cannot exceed 32767 bytes, not including the termin-
+;	    ator.
+;
+;	  § STRING & CHAR must be in the same 64KB memory bank.  STRING may not
+;	    span into the next bank.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access the strings.
+;
+;	  § A pointer to the 1st instance of CHAR in STRING will be returned if
+;	    found.  If CHAR is not present a null pointer will be returned.  
+;
+;	This function will is faster than the STRSTR function when searching for
+;	a single character.
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA C_PTR         ;pointer to CHAR
+;	                PEA S_PTR         ;pointer to STRING
+;	                JSR STRCHR        ;execute function
+;
+;	     Registers: .A: entry value
+;	                .B: entry value
+;	                .X: 16 bits: pointer to CHAR in STRING (2)
+;	                .Y: 16 bits: instances of CHAR in STRING (2)
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> (1)
+;	                    ||||++—————> entry value
+;	                    |||+———————> 0
+;	                    ||+————————> entry value
+;	                    |+—————————> 0
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            N-----ZC
+;	            |     ||
+;	            |     |+———> 1: indicates error
+;	            |     +————> 1: bank overlap
+;	            +——————————> 1: string too long
+;
+;	       2) Undefined if an error occurs.
+;
+;	Example: PEA C_PTR           ;CHAR's pointer
+;	         PEA S_PTR           ;STRING's pointer
+;	         JSR STRCHR          ;find CHAR
+;	         BCS ERROR
+;
+;	         BNE NOTFOUND        ;CHAR not found in STRING
+;
+;	         STA POINTER         ;pointer to CHAR in STRING
+;	         STX COUNT           ;instances of CHAR
+;
+;	ERROR    BPL BNKOVR          ;bank overlap
+;	         BMI TOOLONG         ;string too long
+;	————————————————————————————————————————————————————————————————————————
+;
+strchr   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase            ;workspace index
+;
+;—————————> workspace stack frame start <—————————
+.charcnt =.sfidx               ;instances counter
+.sfidx   .= .sfidx+.s_word
+.charidx =.sfidx               ;char location in string
+.sfidx   .= .sfidx+.s_word
+.char    =.sfidx               ;search character
+.sfidx   .= .sfidx+.s_word
+;—————————> workspace stack frame end <—————————
+;
+.s_wsf   =.sfidx-.sfbase       ;stack workspace size
+.w_wsf   =.s_wsf/.s_word       ;stack workspace words
+.sfbase  .= .sfidx
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.sptr    =.sfidx               ;STRING's pointer
+.sfidx   .= .sfidx+.s_word
+.cptr    =.sfidx               ;CHAR's pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_stl      ;error flags mask
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_ovl|.sr_ixw|.sr_car
+         php
+         longa
+         phb
+         phy
+         phx
+         pha
+         ldaw 0
+         .rept .w_wsf          ;create & initialize workspace
+           pha
+         .endr
+         tay
+         ldas .sptr            ;pointer to STRING
+         tax                   ;absolute index
+         shorta
+         ldasi .cptr           ;copy CHAR into...
+         stas .char            ;workspace
+;
+.0000010 lda $00,x             ;get from STRING
+         beq .0000050          ;EOS
+;
+         cmps .char            ;test against CHAR
+         bne .0000030          ;not a match
+;
+         longa
+         ldas .charcnt         ;get CHAR count
+         ina                   ;increment &...
+         stas .charcnt         ;save it
+         dea                   ;1st instance?
+         bne .0000020          ;no
+;
+         txa                   ;capture location in...
+         stas .charidx         ;STRING for return
+;    
+.0000020 shorta
+;
+.0000030 inx                   ;bump STRING's pointer
+         beq .0000040          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000010          ;try next
+;
+.0000040 php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate error bits
+         ora #.sr_car          ;set carry bit &...
+         bra .done             ;abort w/error
+;
+.0000050 longa
+         ldas .charidx
+         stas .reg_x           ;return CHAR position
+         ldas .charcnt
+         stas .reg_y           ;return CHAR instances
+         shorta
+         beq .done             ;no instances
+;
+         lda #.sr_zer          ;CHAR found
+;
+.done    oras .reg_sr          ;modify SR according...
+         stas .reg_sr          ;to exit status
+         longa
+         clc
+         tsc
+         adcw .s_wsf
+         tcs                   ;discard stack workspace
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;
+;================================================================================
+;
+;strcmp: COMPARE STRING TO STRING: strcmp STRING1,STRING2
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function  compares the character string in STRING2 to the character
+;	string in STRING1 & sets or clears MPU flags according to the comparison
+;	result.  Processing rules are as follows:
+;
+;	  § All parameters must be pointers to data.
+;
+;	  § STRING1 & STRING2 must each be terminated with a null byte ($00).
+;
+;	  § Maximum length for each string is 32767 bytes, not including the
+;	    terminator.
+;
+;	  § STRING1 & STRING2 must be in the same 64KB memory bank.  Neither may
+;	    span into the next bank.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access the strings.
+;
+;	  § The comparison result is indicated by the MPU's N & Z flags as fol-
+;	    lows:
+;
+;	      Z  N  Meaning
+;	      ——————————————————————
+;	      1  x  STRING2 = STRING1
+;	      0  0  STRING2 > STRING1
+;	      0  1  STRING2 < STRING1
+;	      ——————————————————————
+;
+;	    where '<' means "less than", '>' means "greater than" & 'x' means
+;	    "don't care."  See the below programming example for details.
+;
+;	    Equality is returned only if both strings are identical in length &
+;	    content.  Comparison relationships are based solely upon the binary
+;	    values of the individual bytes in the strings.  In the event there
+;	    is a difference in string lengths the comparison result will be dep-
+;	    endent upon the length of the shorter string.  That is, if STRING1 =
+;	    'abcd123' & STRING2 = 'abcd12' then STRING2 < STRING1.
+;
+;	    If both strings are null they are considered to be equal.
+;
+;	  § This function does not perform a pattern patch.  See the STRPAT pat-
+;	    tern-matching function.
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA S2_PTR        ;pointer to STRING2
+;	                PEA S1_PTR        ;pointer to STRING1
+;	                JSR STRCMP        ;execute function
+;
+;	     Registers: .A: entry value
+;	                .B: entry value
+;	                .X: entry value
+;	                .Y: entry value
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> (1)
+;	                    ||++++—————> entry value
+;	                    |+—————————> 0
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            N-----ZC
+;	            |     ||
+;	            |     |+———> 1: indicates error
+;	            |     +————> 1: bank overlap
+;	            +——————————> 1: string too long
+;
+;	Example: PEA S2_PTR          ;STRING2's pointer
+;	         PEA S1_PTR          ;STRING1's pointer
+;	         JSR STRCMP          ;compare STRING2 to STRING1
+;	         BCS ERROR
+;
+;	         BEQ EQUAL           ;STRING2 = STRING1
+;	         BMI LESSER          ;STRING2 < STRING1
+;	         BPL GREATER         ;STRING2 > STRING1
+;
+;	ERROR    BMI TOOLONG         ;string too long
+;	         BPL BNKOVR          ;bank overlap
+;	————————————————————————————————————————————————————————————————————————
+;
+strcmp   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase            ;workspace index
+;
+;—————————> workspace stack frame start <—————————
+.s1len   =.sfidx               ;STRING1's length
+.sfidx   .= .sfidx+.s_word
+.s2len   =.sfidx               ;STRING2's length
+.sfidx   .= .sfidx+.s_word
+;—————————> workspace stack frame end <—————————
+;
+.s_wsf   =.sfidx-.sfbase       ;stack workspace size
+.w_wsf   =.s_wsf/.s_word       ;stack workspace words
+.sfbase  .= .sfidx
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.s1ptr   =.sfidx               ;STRING1's pointer
+.sfidx   .= .sfidx+.s_word
+.s2ptr   =.sfidx               ;STRING1's pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_stl      ;error flags mask
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_ovl|.sr_car
+         php
+         longr
+         phb
+         phy
+         phx
+         pha
+         sec
+         tsc
+         sbcw .s_wsf           ;create stack workspace
+         tcs
+         ldas .s2ptr           ;STRING2's pointer
+         tax                   ;absolute index
+         ldyw 0                ;byte counter
+         shorta                ;8 bit accumulator
+;
+.0000010 lda $00,x             ;find STRING2's terminator
+         beq .0000020          ;found
+;
+         inx                   ;bump string index
+         beq .0000040          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000010          ;keep trying
+;
+         bra .0000040          ;string too long
+;
+.0000020 longa
+         tya                   ;STRING2's length
+         stas .s2len           ;save
+         ldas .s1ptr           ;STRING1's pointer
+         tax                   ;use as index
+         shorta
+         ldyw 0                ;byte counter
+;
+.0000030 lda $00,x             ;find STRING1's terminator
+         beq .0000050          ;found
+;
+         inx                   ;bump index
+         beq .0000040          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000030          ;keep trying
+;
+.0000040 php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate error bits
+         ora #.sr_car          ;set carry bit &...
+         bra .done             ;abort w/error
+;
+.0000050 longa
+         tya                   ;STRING1's length
+         stas .s1len           ;save it
+         cmps .s2len           ;compare string lengths
+         beq .0000060          ;LEN(STRING1) = LEN(STRING2)
+;
+         bcc .0000060          ;LEN(STRING1) < LEN(STRING2)
+;
+         ldas .s2len           ;LEN(STRING1) > LEN(STRING2)
+;
+.0000060 tax                   ;initialize char counter
+         beq .0000080          ;zero, skip string scan
+;
+         shorta
+         ldyw 0                ;starting index
+;
+.0000070 ldasi .s2ptr          ;get char from STRING2
+         cmpsi .s1ptr          ;compare to STRING1
+         bne .0000090          ;no match
+;
+         iny                   ;bump index
+         dex                   ;decrement counter
+         bne .0000070          ;next
+;
+         longa
+;
+.0000080 ldas .s2len           ;STRING2's length
+         cmps .s1len           ;STRING1's length
+         shorta
+         bne .0000090          ;STRING2 != STRING1
+;
+         lda #.sr_zer          ;STRING2 = STRING1
+         bra .done
+;
+.0000090 bcc .0000100
+;
+         lda #0                ;STRING2 > STRING1
+         bra .done
+;
+.0000100 lda #.sr_neg          ;STRING2 < STRING1
+;
+.done    oras .reg_sr          ;modify SR according...
+         stas .reg_sr          ;to exit status
+         longa
+         clc
+         tsc
+         adcw .s_wsf
+         tcs                   ;discard stack workspace
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;
+;================================================================================
+;
+;strcpy: COPY CHARACTER STRING: strcpy STRING1,STRING2
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function copies STRING2 to STRING1, overwriting STRING1.  Process-
+;	ing rules are as follows:
+;
+;	  § All parameters must be pointers to data.
+;
+;	  § STRING2 must be terminated with a null byte ($00).
+;
+;	  § Maximum length for STRING2 is 32767 bytes, not including the termin-
+;	    ator.
+;
+;	  § STRING1 & STRING2 must be in the same 64KB memory bank.  Neither may
+;	    span into the next bank.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access the strings.
+;
+;	  § STRING1 & STRING2 cannot be at the same address.
+;
+;	  § A buffer overflow will occur if STRING2's length plus the terminator
+;	    exceeds the space allocated to STRING1.  It is the responsibility of
+;	    the calling function to allocate sufficient space to STRING1.
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA S2_PTR        ;pointer to STRING2
+;	                PEA S1_PTR        ;pointer to STRING1
+;	                JSR STRCPY        ;execute function
+;
+;	     Registers: .A: entry value
+;	                .B: entry value
+;	                .X: entry value
+;	                .Y: entry value
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> (1)
+;	                    ||++++—————> entry value
+;	                    |+—————————> (1)
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            NV----ZC
+;	            ||    ||
+;	            ||    |+———> 1: indicates error
+;	            ||    +————> 1: bank overlap
+;	            |+—————————> 1: *STRING2 = *STRING1
+;	            +——————————> 1: string too long
+;
+;	          *STRINGx means "address of STRINGx."
+;
+;	       2) This function uses self-modifying code.
+;
+;	Example: PEA S2_PTR          ;STRING2's pointer
+;	         PEA S1_PTR          ;STRING1's pointer
+;	         JSR STRCPY          ;copy STRING2 to STRING1
+;	         BCS ERROR
+;	         ---
+;	ERROR    BMI TOOLONG         ;string too long
+;	         BPL BNKOVR          ;bank overlap
+;	         BVC COINCIDE        ;S2_PTR = S1_PTR
+;	————————————————————————————————————————————————————————————————————————
+;
+strcpy   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase            ;workspace index
+;
+;—————————> workspace stack frame start <—————————
+.s2len   =.sfidx               ;STRING2's length
+.sfidx   .= .sfidx+.s_word
+;—————————> workspace stack frame end <—————————
+;
+.s_wsf   =.sfidx-.sfbase       ;stack workspace size
+.w_wsf   =.s_wsf/.s_word       ;stack workspace words
+.sfbase  .= .sfidx
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.s1ptr   =.sfidx               ;STRING1's pointer
+.sfidx   .= .sfidx+.s_word
+.s2ptr   =.sfidx               ;STRING2's pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_sol  =.sr_ovl              ;string coincidence
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_sol|.er_stl ;error flags mask
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_car
+         php
+         longr
+         phb
+         phy
+         phx
+         pha
+         sec
+         tsc
+         sbcw .s_wsf           ;create stack workspace
+         tcs
+         ldas .s2ptr           ;STRING2's pointer
+         cmps .s1ptr           ;STRING1's pointer
+         bne .0000010          ;different, so okay
+;
+         shorta
+         sep .er_sol|.sr_amw   ;can't copy a...
+         bra .0000030          ;string to itself
+;
+.0000010 tax                   ;initialize index
+         .rept .s_word
+           phb
+         .endr
+         pla                   
+         sta .mvn+.s_byte      ;set destination &...
+         sta .mvp+.s_byte      ;source copy banks
+         shorta                ;8 bit accumulator
+         ldyw 0                ;byte counter
+;
+.0000020 lda $00,x             ;find STRING2's terminator
+         beq .0000040          ;found
+;
+         inx                   ;bump index
+         beq .0000030          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000020          ;okay so far
+;
+.0000030 php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate relevant bits
+         ora #.sr_car          ;set carry &...
+         bra .done             ;abort w/error
+;
+.0000040 longa
+         tya                   ;STRING2's length
+         stas .s2len           ;save for later
+         adcs .s1ptr           ;STRING1's last byte
+         bcs .0000050          ;in next bank — error
+;
+         ldas .s1ptr           ;copy destination
+         cmps .s2ptr           ;copy source
+         bcs .0000060          ;do reverse copy
+;
+         tay                   ;copy destination
+         ldas .s2ptr           ;STRING2's pointer
+         tax                   ;copy source
+         ldas .s2len           ;bytes to copy -1
+.mvn     mvn 0,0               ;forward block copy
+         bra .0000070          ;done
+;
+.0000050 sep .er_bol|.sr_amw   ;flag bank overlap &...
+         bra .0000030          ;abort
+;
+.0000060 clc
+         adcs .s2len           ;STRING2's length
+         tay                   ;point to STRING1's new end
+         ldas .s2ptr           ;pointer to STRING2
+         adcs .s2len           ;add STRING2's length to...
+         tax                   ;get pointer to terminator
+         ldas .s2len           ;bytes to copy -1
+.mvp     mvp 0,0               ;reverse block copy
+;
+.0000070 ina                   ;results in $0000
+         shorta
+;
+.done    oras .reg_sr          ;modify SR according...
+         stas .reg_sr          ;to exit status
+         longa
+         clc
+         tsc
+         adcw .s_wsf
+         tcs                   ;discard stack workspace
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;
+;================================================================================
+;
+;strdel: DELETE CHARACTERS FROM STRING: strdel STRING,I,N
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function deletes N characters from STRING, beginning at index I, &
+;	contracts STRING by, at most, N characters.  The final form of STRING
+;	depends on the values of I & N.  Processing rules are as follows:
+;
+;	  § All parameters must be pointers to data.
+;
+;	  § STRING must be terminated with a null byte ($00).
+;
+;	  § STRING cannot exceed 32767 bytes in length, not including the termi-
+;	    nator.
+;
+;	  § STRING may not span into the next bank.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access STRING, I & N.
+;
+;	  § I is zero-based & N is one-based.  If I=0 and N=10, characters 0 to
+;	    9 inclusive in STRING will be deleted & STRING will be contracted or
+;	    truncated by no more than 10 characters.  Detailed behavior is as
+;	    follows:
+;
+;	    ¶ If I+N is less than STRING's length, STRING will be contracted N
+;	      characters, starting at the Ith character.  For example, if STRING
+;	      is "abcdefghij", I is 3 & N is 2, STRING will be contracted to
+;	      "abcfghij".  The character position formerly occupied by "i" will
+;	      be overwritten with a null.
+;
+;	    ¶ If I+N equals STRING's length, STRING will be truncated to I char-
+;	      acters.  For example, if STRING is "abcdefghij", I is 3 & N is 7,
+;	      STRING will be truncated to "abc" & the position formerly occupied
+;	      by "d" will be overwritten with a null.  The positions occupied by
+;	      "efghij" will be garbage bytes.
+;
+;	    ¶ If STRING is "abcdefghij", I is 0 & N is equal to or greater than
+;	      10 (string length of "abcdefghij"), the position formerly occupied
+;	      by "a" STRING will be overwritten with a null & "bcdefghij" will
+;	      become garbage.
+;
+;	    ¶ If N is 0 STRING will not be changed in any way.
+;
+;	    ¶ If I is greater than or equal to STRING's length an error will oc-
+;	      cur & STRING will not be changed in any way.
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA N_PTR         ;characters to delete pointer
+;	                PEA I_PTR         ;starting index pointer
+;	                PEA S_PTR         ;STRING's pointer
+;	                JSR STRDEL        ;execute function
+;
+;	Exit registers: .A: entry value
+;	                .B: entry value
+;	                .X: entry value
+;	                .Y: entry value
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> (1)
+;	                    ||++++—————> entry value
+;	                    |+—————————> (1)
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            NV----ZC
+;	            ||    ||
+;	            ||    |+———> 1: indicates error
+;	            ||    +————> 1: bank overlap
+;	            |+—————————> 1: index exceeds string length
+;	            +——————————> 1: string too long
+;
+;	       2) This function uses self-modifying code.
+;
+;	Example: PEA N_PTR          ;characters to delete pointer
+;	         PEA I_PTR          ;starting index pointer
+;	         PEA S_PTR          ;STRING's pointer
+;	         JSR STRDEL         ;execute function
+;                BCS ERROR
+;	         ---
+;	ERROR    BEQ BNKOVR         ;bank overlap
+;	         BMI TOOLONG        ;string too long
+;	         BVS BADINDEX       ;index exceeds string length
+;	————————————————————————————————————————————————————————————————————————
+;
+strdel   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase            ;workspace index
+;
+;—————————> workspace stack frame start <—————————
+.nchar   =.sfidx               ;temporary storage
+.sfidx   .= .sfidx+.s_word
+.ssptrs  =.sfidx               ;delete start pointer
+.sfidx   .= .sfidx+.s_word
+.sptre   =.sfidx               ;string end pointer
+.sfidx   .= .sfidx+.s_word
+.slen    =.sfidx               ;string length
+.sfidx   .= .sfidx+.s_word
+;—————————> workspace stack frame end <—————————
+;
+.s_wsf   =.sfidx-.sfbase       ;stack workspace size
+.w_wsf   =.s_wsf/.s_word       ;stack workspace words
+.sfbase  .= .sfidx
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.sptr    =.sfidx               ;STRING's pointer
+.sfidx   .= .sfidx+.s_word
+.iptr    =.sfidx               ;I's pointer
+.sfidx   .= .sfidx+.s_word
+.nptr    =.sfidx               ;N's pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_idx  =.sr_ovl              ;index range
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_idx|.er_stl ;mask
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_car
+         php
+         longr
+         phb
+         phy
+         phx
+         pha
+         .rept .s_word
+           phb
+         .endr
+         pla                   ;get entry data bank &...
+         sta .mvn+.s_byte       ;set move banks
+         sec
+         tsc                   ;current stack pointer
+         sbcw .s_wsf           ;create stack workspace
+         tcs                   ;set new stack pointer
+         ldas .sptr            ;STRING's pointer
+         tax                   ;absolute index
+         shorta                ;8 bit accumulator
+         ldyw 0                ;byte counter
+;
+.0000010 lda $00,x             ;find STRING's terminator
+         beq .0000030          ;found
+;
+         inx                   ;bump index
+         beq .0000020          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000010          ;okay so far
+;
+.0000020 php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate relevant bits
+         ora #.sr_car          ;set carry &...
+         bra .done             ;abort w/error
+;
+.0000030 longa
+         tya                   ;copy length
+         ldyw 0
+         cmpsi .iptr           ;check I for range
+         bcc .0000040          ;out of range
+;
+         bne .0000050          ;in range
+;
+         rep .er_bol           ;not a bank overlap error
+;
+.0000040 shorta
+         sep .er_idx           ;I out of range, so...
+         bra .0000020          ;abort w/error
+;
+.0000050 stas .slen            ;store STRING's length
+         txa
+         stas .sptre           ;STRING's null is here
+         ldasi .nptr           ;chars to delete
+         bne .0000060          ;>0, process string
+;
+         shorta
+         bra .done             ;zero, so just exit
+;
+.0000060 clc
+         ldas .sptr            ;STRING starts here &...
+         adcsi .iptr           ;INDEX is here, so...
+         stas .ssptrs          ;deletion starts here &...
+         adcsi .nptr           ;deletion ends here
+         cmps .sptre           ;deleting at or past null?
+         bcc .0000070          ;no, contract STRING
+;
+         shorta
+         lda #0
+         stasi .ssptrs         ;yes, truncate string
+         bra .done
+;
+.0000070 tax                   ;set move source
+         ldasi .iptr           ;INDEX...
+         adcsi .nptr           ;minus chars to delete
+         stas .nchar           ;save term
+         sec
+         ldas .slen            ;STRING's length
+         sbcs .nchar           ;subtract previous to...
+         stas .nchar           ;chars to move
+         ldas .ssptrs
+         tay                   ;set move destination
+         ldas .nchar           ;set bytes to move
+.mvn     mvn 0,0               ;contract string
+         ina                   ;produces $0000
+         shorta
+;
+.done    oras .reg_sr          ;modify SR according...
+         stas .reg_sr          ;to exit status
+         longa
+         clc
+         tsc
+         adcw .s_wsf
+         tcs                   ;discard stack workspace
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;
+;================================================================================
+;
+;strins: INSERT STRING INTO STRING: strins STRING1,STRING2,I
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function inserts STRING2 into STRING1 at index I, causing STRING1
+;	to expand.  Processing rules are as follows:
+;
+;	  § All parameters must be pointers to data.
+;
+;	  § Both strings must be terminated with a null byte ($00).
+;
+;	  § The combined length of both strings cannot exceed 32767 bytes, not
+;	    including the terminator.
+;
+;	  § STRING1, STRING2 & I must be in the same 64KB memory bank.  Neither
+;	    string may span into the next bank.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access STRING1, STRING2 & I.
+;
+;	  § I is zero-based.
+;
+;	  § If STRING2 is null STRING1 will not be changed in any way.
+;
+;	  § If I is greater than or equal to STRING1's length an error will oc-
+;	    cur & STRING1 will not be changed in any way.
+;
+;	  § STRING1 & STRING2 cannot be at the same address.  Behavior is undef-
+;	    ined if STRING1 & STRING2 overlap.  This possibility must be deter-
+;	    mined by the calling function.
+;
+;	  § A buffer overflow will occur if the combined lengths of both strings
+;	    plus the terminator exceeds the space allocated to STRING1.  It is
+;	    the calling function's responsibility to allocate sufficient space
+;	    to STRING1.
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA IPTR          ;starting index pointer
+;	                PEA S2PTR         ;STRING2's pointer
+;	                PEA S1PTR         ;STRING1's pointer
+;	                JSR STRINS        ;execute function
+;
+;	Exit registers: .A: entry value
+;	                .B: entry value
+;	                .X: entry value
+;	                .Y: entry value
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> (1)
+;	                    ||++++—————> entry value
+;	                    |+—————————> (1)
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            NV----ZC
+;	            ||    ||
+;	            ||    |+———> 1: indicates error
+;	            ||    +————> 0: strings coincide
+;	            ||           1: bank overlap
+;	            |+—————————> 1: index exceeds string length
+;	            +——————————> 1: string too long
+;
+;	       2) This function uses self-modifying code.
+;
+;	Example: PEA N_PTR          ;characters to delete pointer
+;	         PEA I_PTR          ;starting index pointer
+;	         PEA S_PTR          ;STRING's pointer
+;	         JSR STRINS         ;execute function
+;                BCS ERROR
+;	         ---
+;	ERROR    BVS BADINDEX       ;index exceeds string length
+;	         BMI TOOLONG        ;string too long
+;	         BEQ BNKOVR         ;bank overlap
+;	         BNE COINCIDE       ;*STRING2 == *STRING1
+;	————————————————————————————————————————————————————————————————————————
+;
+strins   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase            ;workspace index
+;
+;—————————> workspace stack frame start <—————————
+.nchar   =.sfidx               ;chars to shift
+.sfidx   .= .sfidx+.s_word
+.s1term  =.sfidx               ;STRING1's new terminator
+.sfidx   .= .sfidx+.s_word
+.s2len   =.sfidx               ;STRING2's length
+.sfidx   .= .sfidx+.s_word
+.s1len   =.sfidx               ;STRING1's length
+.sfidx   .= .sfidx+.s_word
+;—————————> workspace stack frame end <—————————
+;
+.s_wsf   =.sfidx-.sfbase       ;stack workspace size
+.w_wsf   =.s_wsf/.s_word       ;stack workspace words
+.sfbase  .= .sfidx
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.s1ptr    =.sfidx              ;STRING1's pointer
+.sfidx   .= .sfidx+.s_word
+.s2ptr    =.sfidx              ;STRING2's pointer
+.sfidx   .= .sfidx+.s_word
+.iptr    =.sfidx               ;I's pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_idx  =.sr_ovl              ;index range
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_idx|.er_stl ;mask
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_car
+         php
+         longr
+         phb
+         phy
+         phx
+         pha
+         sec
+         tsc                   ;current stack pointer
+         sbcw .s_wsf           ;create stack workspace
+         tcs                   ;set new stack pointer
+         ldas .s2ptr           ;STRING2's pointer
+         cmps .s1ptr           ;STRING1's pointer
+         bne .0000010          ;different, so okay
+;
+         shorta
+         sep .er_bits          ;can't insert a...
+         bra .0000030          ;string into itself
+;
+.0000010 tax                   ;initialize index
+         .rept .s_word
+           phb
+         .endr
+         pla                   
+         sta .mvp+.s_byte
+         sta .mvn+.s_byte
+         shorta                ;8 bit accumulator
+         ldyw 0                ;byte counter
+;
+.0000020 lda $00,x             ;find STRING2's terminator
+         beq .0000040          ;found
+;
+         inx                   ;bump index
+         beq .0000030          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000020          ;okay so far
+;
+.0000030 php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate relevant bits
+         ora #.sr_car          ;set carry &...
+         bra .done             ;abort w/error
+;
+.0000040 longa
+         tya                   ;STRING2's length
+         stas .s2len           ;save for later
+         ldas .s1ptr           ;STRING1's pointer
+         tax                   ;starting index
+         ldyw 0                ;byte counter
+         shorta                ;8 bit accumulator
+;
+.0000050 lda $00,x             ;find STRING1's terminator
+         beq .0000060          ;found
+;
+         iny                   ;bump counter
+         bmi .0000030          ;string too long
+;
+         inx                   ;bump index
+         bne .0000050          ;continue
+;
+         bra .0000030          ;bank overlap
+;
+.0000060 longa
+         tya
+         stas .s1len           ;save STRING1's length
+         ldyw 0
+         cmpsi .iptr           ;check I for range
+         bcc .0000030          ;out of range
+;
+         bne .0000080          ;in range
+;
+         rep .er_bol           ;not bank overlap error
+;
+.0000070 shorta
+         bra .0000030          ;abort w/error
+;
+.0000080 clc
+         adcs .s2len           ;add to STRING2's length
+         bcs .0000070          ;would span banks
+;
+         bmi .0000070          ;combined length > 32K
+;
+         adcs .s1ptr           ;add combined length to...
+         stas .s1term          ;get new STRING1 end point
+         ldyw 0
+         sec
+         ldas .s1len           ;subtract I from...
+         sbcsi .iptr           ;STRING1's length to get...
+         stas .nchar           ;chars to shift
+         ldas .s1term
+         tay                   ;copy destination
+         ldas .nchar           ;chars to shift
+.mvp     mvp 0,0               ;split STRING1
+         ldyw 0
+         clc
+         ldas .s1ptr           ;add STRING1's pointer to...
+         adcsi .iptr           ;insertion index to...
+         tay                   ;get insertion address
+         ldas .s2ptr           ;STRING2's pointer is...
+         tax                   ;source address
+         ldas .s2len           ;STRING2's length
+         dea                   ;zero-align
+.mvn     mvn 0,0               ;insert STRING2 into STRING1
+         ina                   ;results in $0000
+         shorta
+;
+.done    oras .reg_sr          ;modify SR according...
+         stas .reg_sr          ;to exit status
+         longa
+         clc
+         tsc
+         adcw .s_wsf
+         tcs                   ;discard stack workspace
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;
+;================================================================================
+;
+;strlen: DETERMINE STRING LENGTH: strlen STRING
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function determines the length of STRING.  Processing rules are as
+;	follows:
+;
+;	  § All parameters must be pointers to data.
+;
+;	  § STRING must be terminated with a null byte ($00).
+;
+;	  § STRING's length cannot exceed 32767 bytes, not including the termin-
+;	    ator.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access STRING.
+;
+;	  § STRING may not span into the next bank.
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA S_PTR         ;pointer to STRING
+;	                JSR STRLEN        ;execute function
+;
+;	     Registers: .C: 16 bits: length of STRING (2)
+;	                .X: entry value
+;	                .Y: entry value
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> (1)
+;	                    |||+++—————> entry value
+;	                    ||+————————> (2)
+;	                    |+—————————> 0
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            N-----ZC
+;	            |     ||
+;	            |     |+———> 1: indicates error
+;	            |     +————> 1: bank overlap
+;	            +——————————> 1: string too long
+;
+;	       2) Returns entry value if an error occurs.
+;
+;	Example: PEA S_PTR           ;pointer to STRING
+;	         JSR STRLEN          ;get STRING's length
+;	         BCS ERROR
+;
+;	         STA LENGTH          ;length in .C
+;	         BEQ ISNULL          ;length = 0
+;
+;	ERROR    BMI TOOLONG         ;string too long
+;	         BPL BNKOVR          ;bank overlap
+;	————————————————————————————————————————————————————————————————————————
+;
+strlen   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	inversions of the above...
+;
+.sr_cari =.sr_car ^ @11111111  ;C
+.sr_bdmi =.sr_bdm ^ @11111111  ;D
+.sr_irqi =.sr_irq ^ @11111111  ;I
+.sr_negi =.sr_neg ^ @11111111  ;N
+.sr_ovli =.sr_ovl ^ @11111111  ;V
+.sr_zeri =.sr_zer ^ @11111111  ;Z
+.sr_amwi =.sr_amw ^ @11111111  ;m
+.sr_ixwi =.sr_ixw ^ @11111111  ;x
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.sptr    = .sfidx              ;STRING's pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_stl      ;error flags mask
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_ovl|.sr_car
+         php
+         longr
+         phb
+         phy
+         phx
+         pha
+         ldas .sptr            ;STRING's pointer
+         tax
+         ldyw 0                ;byte counter
+         shorta
+;
+.0000010 lda $00,x             ;scan STRING for terminator
+         beq .0000030          ;found
+;
+         inx                   ;bump pointer
+         beq .0000020          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000010          ;length okay so far
+;
+.0000020 php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate relevant bits
+         ora #.sr_car          ;set carry &...
+         bra .done             ;abort w/error
+;
+.0000030 ldas .reg_sr          ;entry SR
+         and #.sr_amwi         ;force 16 bit accumulator...
+         stas .reg_sr          ;on exit
+         longa
+         tya                   ;get STRING's length &...
+         stas .reg_c           ;return it to caller
+         shorta
+         php
+         pla                   ;capture MPU status &...
+         and #.sr_zer          ;isolate Z for return
+;
+.done    oras .reg_sr          ;new SR value
+         stas .reg_sr          ;condition exit status
+         longa
+         clc
+         tsc
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;
+;================================================================================
+;
+;strpat: COMPARE PATTERN TO STRING: strpat STRING,PATTERN
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function compares the character string in PATTERN to STRING & ret-
+;	urns a Boolean LIKE or UNLIKE result.  Processing rules are as follows:
+;
+;	  § All parameters must be pointers to data.
+;
+;	  § STRING & PATTERN must each be terminated with a null byte ($00).
+;
+;	  § STRING & PATTERN cannot exceed 32767 bytes in length, not including
+;	    the terminator.
+;
+;	  § STRING & PATTERN must be in the same 64KB memory bank.  Neither may
+;	    span into the next bank.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access the strings.
+;
+;	  § The presence of the metacharacters "?" (character wildcard) & "*"
+;	    (string wildcard) in PATTERN will influence the comparison in the
+;	     following ways:
+;
+;	    ?  Will match exactly 1 character in STRING.  For example, the PAT-
+;	       TERN "fo?bar" will match "foobar", "foObar", "forbar", etc.  The
+;	       PATTERN "????" will match a STRING of exactly 4 characters of any
+;	       kind, including "????".
+;
+;	    *  Will match a sequence of characters in STRING.  For example, the
+;	       PATTERN "ab*" will match any STRING that begins with "ab", such
+;	       as "abcde" or "abracadabra.  The PATTERN "*yz" will match any
+;	       STRING that ends with "yz", such as "abcxyz".  A PATTERN such as
+;	       "ab*lm*yz" will produce a match if STRING begins with "ab", has
+;	       "lm" anywhere in the middle & ends with "yz".  For example, if
+;	       PATTERN is "ab*lm*yz" & STRING is the lower case Roman alphabet
+;	       a match will occur.
+;
+;	    Combinations of the metacharacters may be used in a variety of ways.
+;	    For example, "?*" will match any non-null STRING.  Similarly, "???*"
+;	    will match with any STRING that is 3 or more characters in length.
+;
+;	    The PATTERN "*" will match with any STRING, even if null.  Multiple
+;	    consecutive "*" characters in PATTERN, e.g., "***", will be treated
+;	    as a single "*".  Hence, "ab***yz" is equivalent to "ab*yz".
+;
+;	  § The comparison result is indicated by the MPU's Z flag as follows:
+;
+;	      Z  Meaning
+;	      ————————————————————————
+;	      1  PATTERN LIKE STRING
+;	      0  PATTERN UNLIKE STRING
+;	      ————————————————————————
+;
+;	    The above is not valid if an error occurs.  See note 1 below for de-
+;	    tails.
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA P_PTR         ;pointer to PATTERN
+;	                PEA S_PTR         ;pointer to STRING
+;	                JSR STRPAT        ;execute function
+;
+;	     Registers: .A: entry value
+;	                .B: entry value
+;	                .X: entry value
+;	                .Y: entry value
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> see text & note 1
+;	                    ||++++—————> entry value
+;	                    |+—————————> 0
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            N-----ZC
+;	            |     ||
+;	            |     |+———> 1: indicates error
+;	            |     +————> 1: bank overlap
+;	            +——————————> 1: string too long
+;	————————————————————————————————————————————————————————————————————————
+;
+strpat   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase            ;workspace index
+;
+;—————————> workspace stack frame start <—————————
+.sptrtmp =.sfidx               ;STRING temp pointer
+.sfidx   .= .sfidx+.s_word
+.pptrtmp =.sfidx               ;PATTERN temp pointer
+.sfidx   .= .sfidx+.s_word
+.sptrwrk =.sfidx               ;STRING work pointer
+.sfidx   .= .sfidx+.s_word
+.pptrwrk =.sfidx               ;PATTERN work pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> workspace stack frame end <—————————
+;
+.s_wsf   =.sfidx-.sfbase       ;stack workspace size
+.w_wsf   =.s_wsf/.s_word       ;stack workspace words
+.sfbase  .= .sfidx
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.sptr    =.sfidx               ;STRING's pointer
+.sfidx   .= .sfidx+.s_word
+.pptr    =.sfidx               ;PATTERN's pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_stl      ;error flags mask
+;
+;
+;	wildcards...
+;
+.cwild   ='?'                  ;character
+.swild   ='*'                  ;string
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_car
+         php
+         longr
+         phb
+         phy
+         phx
+         pha
+         sec
+         tsc
+         sbcw .s_wsf           ;create stack workspace
+         tcs
+         ldas .pptr            ;PATTERN's pointer
+         stas .pptrwrk         ;set up work pointer
+         tax                   ;absolute index
+         ldyw 0                ;byte counter
+         shorta                ;8 bit accumulator
+;
+.0000010 lda $00,x             ;find PATTERN's terminator
+         beq .0000020          ;found
+;
+         inx                   ;bump index
+         beq .0000040          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000010          ;okay so far
+;
+         bra .0000040          ;string too long
+;
+.0000020 longa
+         ldas .sptr            ;STRING's pointer
+         stas .sptrwrk         ;set up work pointer
+         tax                   ;use as index
+         shorta
+         ldyw 0                ;byte counter
+;
+.0000030 lda $00,x             ;find STRING's terminator
+         beq .0000050          ;found
+;
+         inx                   ;bump index
+         beq .0000040          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000030          ;okay so far
+;
+.0000040 php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate relevant bits
+         ora #.sr_car          ;set carry &...
+         brl .done             ;abort w/error
+;
+.0000050 shorta
+         ldyw 0
+;
+.0000060 ldasi .sptrwrk        ;get char from STRING
+         beq .0000120          ;EOS
+;
+         ldasi .pptrwrk        ;get char from PATTERN
+         cmp #.swild           ;string wildcard?
+         beq .0000080          ;yes, process
+;
+         cmpsi .sptrwrk        ;same as in PATTERN?
+         beq .0000070          ;yes, keep comparing
+;
+         cmp #.cwild           ;char wildcard?
+         bne .0000150          ;no, PATTERN != STRING
+;
+.0000070 longa
+         ldas .pptrwrk         ;point at...
+         ina                   ;next char...
+         stas .pptrwrk         ;in PATTERN
+         ldas .sptrwrk         ;point at...
+         ina                   ;next char...
+         stas .sptrwrk         ;in STRING
+         shorta
+         bra .0000060          ;next comparison
+;
+.0000080 ldasi .sptrwrk        ;get char from STRING
+         beq .0000120          ;EOS
+;
+         ldasi .pptrwrk        ;get char from PATTERN
+         cmp #.swild           ;string wildcard?
+         bne .0000090          ;no, process as a char
+;
+         iny                   ;position to next...
+         ldasi .pptrwrk        ;char in PATTERN
+         beq .0000140          ;EOS, PATTERN == STRING
+;
+         dey                   ;realign
+         longa
+         ldas .pptrwrk         ;point at...
+         ina                   ;next char...
+         stas .pptrwrk         ;in PATTERN
+         stas .pptrtmp         ;also copy for position reset
+         ldas .sptrwrk         ;point at STRING's...
+         ina                   ;next char & save in case...
+         stas .sptrtmp         ;char comparison fails
+         shorta
+         ldasi .pptrwrk        ;get next char from PATTERN
+;
+.0000090 cmpsi .sptrwrk        ;compare PATTERN to STRING
+         beq .0000100          ;match
+;
+         cmp #.cwild           ;char wildcard?
+         bne .0000110          ;no, mismatch
+;
+.0000100 longa
+         ldas .pptrwrk         ;point at...
+         ina                   ;next char...
+         stas .pptrwrk         ;in PATTERN
+         ldas .sptrwrk         ;point at...
+         ina                   ;next char...
+         stas .sptrwrk         ;in STRING
+         shorta
+         bra .0000080          ;resume comparison
+;
+.0000110 longa
+         ldas .sptrtmp         ;saved STRING pointer
+         stas .sptrwrk         ;restore it
+         ina                   ;also point to next STRING...
+         stas .sptrtmp         ;char for next compare
+         ldas .pptrtmp         ;saved PATTERN pointer
+         stas .pptrwrk         ;restore it
+         shorta
+         bra .0000080          ;resume comparison
+;
+.0000120 ldasi .pptrwrk        ;looking for trailing...
+         cmp #.swild           ;string wildcards...
+         bne .0000130          ;in PATTERN
+;
+         iny
+         bpl .0000120          ;keep tring
+;
+.0000130 ora #0                ;EOS?
+         bne .0000150          ;no, PATTERN != STRING
+;
+.0000140 lda #.sr_zer          ;yes, PATTERN == STRING
+         bra .done   
+;
+.0000150 lda #!.sr_zer         ;PATTERN != STRING
+;
+.done    oras .reg_sr          ;modify SR according...
+         stas .reg_sr          ;to exit status
+         longa
+         clc
+         tsc
+         adcw .s_wsf
+         tcs                   ;discard stack workspace
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;
+;================================================================================
+;
+;strprn: PRINT CHARACTER STRING: strprn STRING
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function prints STRING to an output device.  Processing rules are
+;	as follows:
+;
+;	  § STRING must be a pointer to to the character string.
+;
+;	  § The string must be terminated with a null byte ($00).
+;
+;	  § The string's length cannot exceed 32767 bytes, not including the
+;	    terminator.
+;
+;	  § The string may not span into the next bank.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access STRING.
+;
+;	  § The symbol PUTCHA must be defined to point to a subroutine that will
+;	    output the character in .A to the appropriate output device.  PUTCHA
+;	    must preserve all registers.  Add code as required to trap & process
+;	    PUTCHA error returns.
+;
+;	  § Add code as necessary at the indicated point to process escape seq-
+;	    uences that can exercise control over the output device.
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA SPTR          ;string pointer
+;	                JSR STRPRN        ;execute function
+;
+;	Exit registers: .A: entry value
+;	                .B: entry value
+;	                .X: entry value
+;	                .Y: entry value
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> (1)
+;	                    ||++++—————> entry value
+;	                    |+—————————> (1)
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            N-----ZC
+;	            |     ||
+;	            |     |+———> 1: indicates error
+;	            |     +————> 1: bank overlap
+;	            +——————————> 1: string too long
+;
+;	Example: PEA SPTR           ;pointer to STRING
+;	         JSR STRPRN         ;print
+;	         BCS ERROR
+;	         ---
+;	ERROR    BEQ BNKOVR         ;bank overlap
+;	         BMI TOOLONG        ;string too long
+;	————————————————————————————————————————————————————————————————————————
+;
+         .if !.ref(putcha)
+           .error "strprn: PUTCHA output call not defined: assembly halted"
+         .endif
+;
+strprn   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+.a_esc   =27                   ;ASCII escape character
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase            ;workspace index
+;
+;—————————> workspace stack frame start <—————————
+;—————————> workspace stack frame   end <—————————
+;
+.s_wsf   =.sfidx-.sfbase       ;stack workspace size
+.w_wsf   =.s_wsf/.s_word       ;stack workspace words
+.sfbase  .= .sfidx
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame   end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.sptr     =.sfidx              ;string pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame   end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_stl      ;error flags mask
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_ovl|.sr_car
+         php
+         longr
+         phb
+         phy
+         phx
+         pha
+         ldas .sptr            ;string pointer
+         tax                   ;use as index
+         ldyw 0                ;string length counter
+         shorta
+;
+.0000010 lda $00,x             ;get char
+         beq .done             ;done
+;
+;	* * * * * * * * * * * * * * * * * ** * * * * * * * * * * 
+;	* uncomment following code to enable escape processing *
+;	* * * * * * * * * * * * * * * * * ** * * * * * * * * * * 
+;
+;         cmp #.a_esc           ;escape?
+;         beq .escape           ;yes, process
+;
+         jsr putcha            ;no, output it
+;
+;	* * * * * * * * * * * * * * * * * * * *
+;	* escape processing code returns here *
+;	* * * * * * * * * * * * * * * * * * * *
+;
+.escret  inx                   ;bump index
+         beq .comerr           ;bank overlap
+;
+         iny
+         bpl .0000010          ;keep going
+;
+.comerr  php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate error bits
+         ora #.sr_car          ;set carry bit &...
+         bra .done             ;abort w/error
+;         
+;	* * * * * * * * * * * * * * * * * *
+;	* start of escape processing code *
+;	* * * * * * * * * * * * * * * * * *
+;
+.escape  bra .escret           ;return to main loop
+;         
+;	* * * * * * * * * * * * * * * * *
+;	* end of escape processing code *
+;	* * * * * * * * * * * * * * * * *
+;
+;
+;	common exit...
+;
+.done    oras .reg_sr          ;modify SR according...
+         stas .reg_sr          ;to exit status
+         longa
+         clc
+         tsc
+;         adcw .s_wsf           ;uncomment to clean up...
+;         tcs                   ;stack workspace
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;
+;================================================================================
+;
+;strstr: FIND SUBSTRING IN STRING: strstr STRING1,STRING2
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function searches STRING1 for the 1st occurrence of STRING2 & ret-
+;	urns a pointer to STRING2's location in STRING1.  Processing rules are
+;	as follows:
+;
+;	  § All parameters must be pointers to data.
+;
+;	  § STRING1 & STRING2 must each be terminated with a null byte ($00).
+;
+;	  § Maximum length for each string is 32767 bytes, not including the
+;	    terminator.
+;
+;	  § STRING1 & STRING2 must be in the same 64KB memory bank.  Neither may
+;	    span into the next bank.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access the strings.
+;
+;	Although is it possible to search for a single character with this func-
+;	tion if the character is null-terminated (which would make it a string),
+;	the STRCHR function accomplishes the same task more rapidly, especially
+;	when STRING1 is long.
+;
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA S2PTR         ;pointer to STRING2
+;	                PEA S1PTR         ;pointer to STRING1
+;	                JSR STRSTR        ;execute function
+;
+;	     Registers: .A: entry value
+;	                .B: entry value
+;	                .X: 16 bits: pointer to STRING2 in STRING1 (2,3)
+;	                .Y: 16 bits: STRING2's length (3)
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> (1)
+;	                    ||||++—————> entry value
+;	                    |||+———————> (3)
+;	                    ||+————————> entry value
+;	                    |+—————————> 0
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            N-----ZC
+;	            |     ||
+;	            |     |+———> 1: indicates error
+;	            |     +————> 1: bank overlap
+;	            +——————————> 1: string too long
+;
+;	       2) Null if STRING2 is not found.
+;
+;	       3) Entry value if an error occurs.
+;
+;	Example: PEA S2PTR           ;STRING2's pointer
+;	         PEA S1PTR           ;STRING1's pointer
+;	         JSR STRSTR          ;search STRING1 for STRING2
+;	         BCS ERROR           ;string too long or bank overlap
+;
+;	         BEQ NOTFOUND        ;STRING2 not found
+;
+;	         STX SSPTR           ;save STRING2's address in STRING1
+;	         STY SSLEN           ;save STRING2's length
+;
+;	ERROR    BMI TOOLONG         ;string too long
+;	         BPL BNKOVR          ;bank overlap
+;	————————————————————————————————————————————————————————————————————————
+;
+strstr   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	inversions of the above...
+;
+.sr_cari =.sr_car ^ @11111111  ;C
+.sr_bdmi =.sr_bdm ^ @11111111  ;D
+.sr_irqi =.sr_irq ^ @11111111  ;I
+.sr_negi =.sr_neg ^ @11111111  ;N
+.sr_ovli =.sr_ovl ^ @11111111  ;V
+.sr_zeri =.sr_zer ^ @11111111  ;Z
+.sr_amwi =.sr_amw ^ @11111111  ;m
+.sr_ixwi =.sr_ixw ^ @11111111  ;x
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase            ;workspace index
+;
+;—————————> workspace stack frame start <—————————
+.s2len   =.sfidx               ;STRING2's length
+.sfidx   .= .sfidx+.s_word
+;—————————> workspace stack frame end <—————————
+;
+.s_wsf   =.sfidx-.sfbase       ;stack workspace size
+.w_wsf   =.s_wsf/.s_word       ;stack workspace words
+.sfbase  .= .sfidx
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.s1ptr   =.sfidx               ;STRING1's pointer
+.sfidx   .= .sfidx+.s_word
+.s2ptr   =.sfidx               ;STRING2's pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_stl      ;mask
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_ovl|.sr_car
+         php
+         longr
+         phb
+         phy
+         phx
+         pha
+         sec
+         tsc
+         sbcw .s_wsf           ;create stack workspace
+         tcs
+         ldas .s2ptr           ;STRING2's pointer
+         tax                   ;absolute index
+         ldyw 0                ;byte counter
+         shorta                ;8 bit accumulator
+;
+.0000010 lda $00,x             ;find STRING2's terminator
+         beq .0000030          ;found
+;
+         inx                   ;bump string index
+         beq .0000020          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000010          ;okay so far
+;
+.0000020 php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate relevant bits
+         ora #.sr_car          ;set carry &...
+         bra .done             ;abort w/error
+;
+.0000030 longa
+         tya                   ;STRING2's length
+         stas .s2len           ;save for return
+         beq .0000110          ;null string, done
+;
+         ldas .s1ptr           ;STRING1's pointer
+         tax                   ;use as index
+         ldyw 0                ;byte counter
+         shorta
+;
+.0000040 lda $00,x             ;find STRING1's terminator
+         beq .0000050          ;found
+;
+         inx                   ;bump index
+         beq .0000020          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000040          ;keep trying
+;
+         bra .0000020          ;string too long — error
+;
+.0000050 longa
+         tya                   ;STRING1's length
+         beq .0000110          ;null string, done
+;
+         cmps .s2len           ;LEN(STRING1) < LEN(STRING2)?
+         bcs .0000060          ;no, continue with search
+;
+         ldaw 0                ;yes, no point...
+         bra .0000110          ;in searching
+;
+.0000060 ldas .s1ptr
+         tax                   ;starting index
+;
+.0000070 longa
+         ldas .s2ptr           ;STRING2 pointer
+         tay                   ;starting index
+         txa                   ;current STRING1 pointer
+         stas .s1ptr           ;update stack copy
+         shorta
+;
+.0000080 lda $00,y             ;get STRING2 char
+         beq .0000100          ;EOS, have a match
+;
+         cmp $00,x             ;compare against STRING1
+         bne .0000090          ;no match
+;
+         inx                   ;bump STRING1's index
+         iny                   ;bump STRING2's index
+         bra .0000080          ;keep checking
+;
+.0000090 inx                   ;bump STRING1's index
+         lda $00,x             ;reach end of STRING1?
+         bne .0000070          ;no, repeat search
+;
+         longa                 ;yes, STRING2 not found
+         ldaw 0                ;return null pointer
+         bra .0000110
+;
+.0000100 longa
+         ldas .s1ptr           ;STRING2's location in STRING1
+;
+.0000110 stas .reg_x           ;return pointer to caller
+         tax                   ;hold a copy for testing
+         shorta
+         ldas .reg_sr          ;entry SR
+         and #.sr_ixwi         ;force 16 bit .X & .Y...
+         stas .reg_sr          ;on exit
+         longa
+         ldas .s2len           ;STRING2's length
+         stas .reg_y           ;return to caller
+         txa                   ;restore STRING2's pointer
+         shorta
+         php                   ;capture...
+         pla                   ;MPU status
+         and #.sr_zer          ;isolate Z & toggle it...
+         eor #.sr_zer          ;for equality status
+;
+.done    oras .reg_sr          ;modify SR according...
+         stas .reg_sr          ;to exit status
+         longa
+         clc
+         tsc
+         adcw .s_wsf
+         tcs                   ;discard stack workspace
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;
+;================================================================================
+;
+;strsub: COPY SUBSTRING INTO STRING: strsub STRING1,STRING2,I,N
+;
+;	————————————————————————————————————————————————————————————————————————
+;	This function copies N characters from STRING1 to STRING2, starting at
+;	index I & overwriting STRING2.  Processing rules are as follows:
+;
+;	  § All parameters must be pointers to data.
+;
+;	  § STRING1 must be terminated with a null byte ($00).
+;
+;	  § STRING1's length cannot exceed 32767 bytes, not including the termi-
+;	    nator.
+;
+;	  § STRING1, STRING2, I & N must be in the same 64KB memory bank.  Nei-
+;	    ther string may span into the next bank.
+;
+;	  § The data bank defined by DB is the working bank.  The calling func-
+;	    tion must change DB as required to access STRING1, STRING2, I & N.
+;
+;	  § I is zero-based.
+;
+;	  § If N is zero STRING2 will not be changed in any way.
+;
+;	  § If I is greater than or equal to STRING1's length an error will oc-
+;	    cur & STRING2 will not be changed in any way.
+;
+;	  § If I+N is greater than STRING1's length all characters in STRING1,
+;	    starting at I, will be copied to STRING2.
+;
+;	  § STRING1 & STRING2 cannot be at the same address.  Results are undef-
+;	    ined if STRING1 & STRING2 overlap.  This possibility must be deter-
+;	    mined by the calling function.
+;	
+;	  § A buffer overflow will occur if the length of the copied substring
+;	    plus the terminator exceeds the space allocated to STRING2.  It is
+;	    the calling function's responsibility to allocate sufficient space
+;	    to STRING2.
+;	————————————————————————————————————————————————————————————————————————
+;	Calling syntax: PEA NPTR          ;N's pointer
+;	                PEA IPTR          ;I's pointer
+;	                PEA S2PTR         ;STRING2's pointer
+;	                PEA S1PTR         ;STRING1's pointer
+;	                JSR STRSUB        ;execute function
+;
+;	Exit registers: .A: entry value
+;	                .B: entry value
+;	                .X: entry value
+;	                .Y: entry value
+;	                DB: entry value
+;	                DP: entry value
+;	                PB: entry value
+;	                SR: NVmxDIZC
+;	                    ||||||||
+;	                    |||||||+———> 0: okay
+;	                    |||||||      1: error (1)
+;	                    ||||||+————> (1)
+;	                    ||++++—————> entry value
+;	                    |+—————————> (1)
+;	                    +——————————> (1)
+;
+;	Notes: 1) If an error occurs SR meanings are as follows:
+;
+;	            NV----ZC
+;	            ||    ||
+;	            ||    |+———> 1: indicates error
+;	            ||    +————> 0: strings coincide
+;	            ||           1: bank overlap
+;	            |+—————————> 1: index exceeds string length
+;	            +——————————> 1: string too long
+;
+;	       2) This function uses self-modifying code.
+;
+;	Example: PEA NPTR           ;characters to copy pointer
+;	         PEA IPTR           ;starting index pointer
+;	         PEA S2PTR          ;STRING2's pointer
+;	         PEA S1PTR          ;STRING1's pointer
+;	         JSR STRSUB         ;execute function
+;                BCS ERROR
+;	         ---
+;	ERROR    BVS BADINDEX       ;index exceeds string length
+;	         BMI TOOLONG        ;string too long
+;	         BEQ BNKOVR         ;bank overlap
+;	         BNE COINCIDE       ;*STRING2 == *STRING1
+;
+;	*STRINGx means "address of STRINGx."
+;	————————————————————————————————————————————————————————————————————————
+;
+strsub   ;this line intentionally has no code
+;
+;—————————————————————————————————————————————————————————
+;EPHEMERAL DEFINITIONS
+;
+.s_byte  =1                    ;size of a byte
+.s_word  =.s_byte*2            ;size of a word
+;
+;
+;	65C816 register sizes...
+;
+.s_mpudb =.s_byte              ;data bank
+.s_mpudp =.s_word              ;direct page
+.s_mpupb =.s_byte              ;program bank
+.s_mpupc =.s_word              ;program counter
+.s_mpusp =.s_word              ;stack pointer
+.s_mpusr =.s_byte              ;status
+;
+;
+;	status register bits...
+;
+.sr_car  =@00000001            ;C — carry
+.sr_bdm  =@00001000            ;D — decimal
+.sr_irq  =@00000100            ;I — IRQ
+.sr_neg  =@10000000            ;N — result negative
+.sr_ovl  =@01000000            ;V — sign overflow
+.sr_zer  =@00000010            ;Z — result zero
+.sr_amw  =@00100000            ;m — accumulator/memory size
+.sr_ixw  =@00010000            ;x — index sizes
+;
+;
+;	stack definitions...
+;
+.sfbase  .= 1                  ;base stack index
+.sfidx   .= .sfbase            ;workspace index
+;
+;—————————> workspace stack frame start <—————————
+.nchar   =.sfidx               ;chars to shift
+.sfidx   .= .sfidx+.s_word
+.s1len   =.sfidx               ;STRING1's length
+.sfidx   .= .sfidx+.s_word
+;—————————> workspace stack frame end <—————————
+;
+.s_wsf   =.sfidx-.sfbase       ;stack workspace size
+.w_wsf   =.s_wsf/.s_word       ;stack workspace words
+.sfbase  .= .sfidx
+;
+;—————————> register stack frame start <—————————
+.reg_c   =.sfidx               ;.C
+.sfidx   .= .sfidx+.s_word
+.reg_x   =.sfidx               ;.X
+.sfidx   .= .sfidx+.s_word
+.reg_y   =.sfidx               ;.Y
+.sfidx   .= .sfidx+.s_word
+.reg_db  =.sfidx               ;DB
+.sfidx   .= .sfidx+.s_mpudb
+.reg_sr  =.sfidx               ;SR
+.sfidx   .= .sfidx+.s_mpusr
+.reg_pc  =.sfidx               ;PC
+.sfidx   .= .sfidx+.s_mpupc
+;—————————> register stack frame end <—————————
+;
+.s_rsf   =.sfidx-.sfbase       ;register stack frame size
+.sfbase  .= .sfidx
+;
+;—————————> parameter stack frame start <—————————
+.s1ptr    =.sfidx              ;STRING1's pointer
+.sfidx   .= .sfidx+.s_word
+.s2ptr    =.sfidx              ;STRING2's pointer
+.sfidx   .= .sfidx+.s_word
+.iptr    =.sfidx               ;I's pointer
+.sfidx   .= .sfidx+.s_word
+.nptr    =.sfidx               ;N's pointer
+.sfidx   .= .sfidx+.s_word
+;—————————> parameter stack frame end <—————————
+;
+.s_psf   =.sfidx-.sfbase       ;parameter stack frame size
+;
+;
+;	error flags...
+;
+.er_bol  =.sr_zer              ;bank span
+.er_idx  =.sr_ovl              ;index range
+.er_stl  =.sr_neg              ;string length
+.er_bits =.er_bol|.er_idx|.er_stl ;mask
+;—————————————————————————————————————————————————————————
+;
+         rep .er_bits|.sr_car
+         php
+         longr
+         phb
+         phy
+         phx
+         pha
+         sec
+         tsc                   ;current stack pointer
+         sbcw .s_wsf           ;create stack workspace
+         tcs                   ;set new stack pointer
+         ldas .s1ptr           ;STRING1's pointer
+         cmps .s2ptr           ;STRING2's pointer
+         bne .0000010          ;different, so okay
+;
+         shorta
+         rep .er_bits          ;can't copy a...
+         bra .0000030          ;string to itself
+;
+.0000010 tax                   ;initialize index
+         .rept .s_word
+           phb
+         .endr
+         pla                   
+         sta .mvn+.s_byte
+         shorta                ;8 bit accumulator
+         ldyw 0                ;byte counter
+;
+.0000020 lda $00,x             ;find STRING1's terminator
+         beq .0000040          ;found
+;
+         inx                   ;bump index
+         beq .0000030          ;bank overlap — error
+;
+         iny                   ;bump counter
+         bpl .0000020          ;okay so far
+;
+.0000030 php                   ;capture...
+         pla                   ;MPU status
+         and #.er_bits         ;isolate relevant bits
+         ora #.sr_car          ;set carry &...
+         bra .done             ;abort w/error
+;
+.0000040 longa
+         tya                   ;STRING1's length
+         stas .s1len           ;save for later
+         ldyw 0
+         ldasi .iptr           ;index
+         cmps .s1len           ;within string boundaries?
+         bcc .0000050          ;yes
+;
+         shorta                ;no
+         rep .er_bits          ;clear irrelevant bits
+         sep .er_idx           ;flag index range error &... 
+         bra .0000030          ;abort
+;
+.0000050 sec
+         ldas .s1len           ;STRING1's length
+         sbcsi .iptr           ;subtract index to get...
+         stas .nchar           ;chars that can be copied
+         cmpsi .nptr           ;compare to requested chars
+         bcc .0000060          ;available < requested
+;
+         ldasi .nptr           ;copy requested chars
+;
+.0000060 stas .nchar           ;save chars to copy
+         oraw 0                ;zero chars?
+         bne .0000070          ;no, copy substring
+;
+         shorta                ;yes, nothing to do
+         bra .done
+;
+.0000070 clc
+         ldas .s1ptr           ;STRING1's pointer
+         adcsi .iptr           ;add I for starting point
+         tax                   ;now copy source
+         ldas .s2ptr           ;STRING2's pointer
+         tay
+         ldas .nchar           ;chars to copy
+         dea                   ;zero align
+.mvn     mvn 0,0               ;copy
+         ina                   ;results in $0000
+         shorta
+         sta $00,y             ;terminate STRING2
+;
+.done    oras .reg_sr          ;modify SR according...
+         stas .reg_sr          ;to exit status
+         longa
+         clc
+         tsc
+         adcw .s_wsf
+         tcs                   ;discard stack workspace
+         adcw .s_rsf
+         tax
+         adcw .s_psf
+         tay
+         ldaw .s_rsf-1
+         mvp 0,0               ;realign stack
+         tya
+         tcs
+         pla
+         plx
+         ply
+         plb
+         plp
+         rts
+;

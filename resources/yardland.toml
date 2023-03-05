@@ -1,9 +1,0 @@
-[yardland]
-file = "yardland_settings"
-version = "0.1.0"
-[yardland.settings]
-default_profile = 0
-[[yardland.settings.profiles]]
-name = "Default"
-system = "zinc_pc"
-start_rom = "testfirmware.toml"

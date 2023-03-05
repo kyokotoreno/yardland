@@ -1,0 +1,101 @@
+;================================================================================
+;
+;STRING MANIPULATION LIBRARY MACROS
+;
+;	Copyright ©1994-2013 by BCS Technology Limited.  All rights reserved.
+;	————————————————————————————————————————————————————————————————————————
+;	Permission is hereby granted to use, copy, modify and distribute this
+;	software, either in library form or as part of a complete package.  BCS
+;	Technology Limited requires that a copyright acknowledgment worded as
+;	follows must be present in any documentation provided with the package
+;	of which all or any part of this library is a component:
+;
+;	    Portions of this software copyright ©1994-2013 by BCS Technology
+;	    Limited.  All rights reserved.
+;
+;	The above copyright acknowledgment must also appear at least once in the
+;	source code of the package into which this library has been integrated.
+;
+;	Redistribution of this software in any form must be at no charge to the
+;	end user.  This code or any part thereof, including but not limited to
+;	any derivation, MAY NOT be incorporated into any package intended for
+;	sale, unless written permission to do so has been granted by BCS Tech-
+;	nology Limited.  Please visit http://bcstechnology.net for information
+;	on how to contact us to obtain such permission.
+;
+;	THERE IS NO WARRANTY OF ANY KIND WITH THIS SOFTWARE.  While it is bel-
+;	ieved that all code will perform as described, the user assumes all risk
+;	in connection with the incorporation of this software into any system.
+;	If this provision is not acceptable to you do not use this software and
+;	immediately delete it from your system.
+;	————————————————————————————————————————————————————————————————————————
+;
+strcat   .macro .s1,.s2        ;catenate STRING2 to STRING1
+         pea .s2
+         pea .s1
+         jsr strcat
+         .endm
+;
+strchr   .macro .s,.c          ;find CHAR in STRING
+         pea .c
+         pea .s
+         jsr strchr
+         .endm
+;
+strcmp   .macro .s1,.s2        ;compare STRING2 to STRING1
+         pea .s2
+         pea .s1
+         jsr strcmp
+         .endm
+;
+strcpy   .macro .s1,.s2        ;copy STRING2 to STRING1
+         pea .s2
+         pea .s1
+         jsr strcpy
+         .endm
+;
+strdel   .macro .s,.i,.n       ;delete N chars from STRING at I
+         pea .n
+         pea .i
+         pea .s
+         jsr strdel
+         .endm
+;
+strins   .macro .s1,.s2,.i     ;insert STRING2 into STRING1 at I
+         pea .i
+         pea .s2
+         pea .s1
+         jsr strins
+         .endm
+;
+strlen   .macro .s             ;get length of STRING
+         pea .s
+         jsr strlen
+         .endm
+;
+strpat   .macro .s,.p          ;compare PATTERN to STRING
+         pea .p
+         pea .s
+         jsr strpat
+         .endm
+;
+strprn   .macro .s             ;print string to output device
+         pea .s
+         jsr strprn
+         .endm
+;
+strstr   .macro .s1,.s2        ;find STRING2 in STRING1
+         pea .s2
+         pea .s1
+         jsr strstr
+         .endm
+;
+strsub   .macro .s1,.s2,.i,.n  ;copy N chars from I in STRING1 to STRING2
+         pea .n
+         pea .i
+         pea .s2
+         pea .s1
+         jsr strsub
+         .endm
+;
+	.end
