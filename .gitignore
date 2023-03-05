@@ -1,11 +1,7 @@
-# Ignore CMake Files
+# Ignore VS Code Files
 
-build/
-out/
-CMakeSettings.json
-
-# Ignore Visual Studio and VS Code Files
-
-.vs/
 .vscode/
 *.code-workspace
+
+# Ignore built binary
+yardland
