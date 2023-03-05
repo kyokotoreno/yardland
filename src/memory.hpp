@@ -11,6 +11,8 @@
 #include <cstring>
 #include <vector>
 
+#define MEMORY_BUFFER_SIZE 65536
+
 /**
  * @brief A port.
  *

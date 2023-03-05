@@ -37,5 +37,5 @@ void Memory::removePort(size_t id) {
 
 void Memory::populate(uint8_t *src, size_t size)
 {
-    memcpy((void*)mpMemoryBuffer, (void*)src, size);
+    memcpy(mpMemoryBuffer, src, size);
 }
