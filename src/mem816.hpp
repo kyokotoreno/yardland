@@ -22,8 +22,8 @@
 #ifndef MEM816_H
 #define MEM816_H
 
-#include <libyardland/cpu/wdc816.hpp>
-#include <libyardland/memory/memory.hpp>
+#include <wdc816.hpp>
+#include <memory.hpp>
 
 // The mem816 class defines a set of standard methods for defining and accessing
 // the emulated memory area.

@@ -1,34 +1,54 @@
-	org $0000
-	org $a000
-string: asciiz "Hello, World! From inside this thing"
+    org 0
+    org $d000
 
-	org $b000 ; text
+msg:
+    asciiz "Hello World!, Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."
 
-; Function strcpy(char* src, char* dst)
+;! Not working
+; Function strcpy(char *src, char *dst)
+; sizeof(char*) = 2
 ;
-; in x receives a ptr to src (null terminated)
-; in y receives a ptr to dst (should have enough space to fit src)
-
-_strcpy:
-	lda 0,x
-	sta 0,y
-	bne _strcpy
-	rts
-
-; Function entry()
+; stack = *dst
+; stack+1 = *src
+;_strcpy:
+;    ldx #0
+;    pla
+;    sta $00,x
+;    inx
+;    rts
 
 _entry:
-	lda #<string
-	pha
-	lda #>string
-	pha
-	jsr _strcpy
+    ldx #0   
+:   
+    lda msg,x
+    beq :+
+    sta $a000,x
+    inx
+    bra :-
+:
+    ;lda #1
+    ;sta $a3e9
+:   
+    lda #0
+:   
+    sta $a7d0
+    ina
+    jsr _wait
+    cmp #4
+    beq :--
+    bra :-
+    wdm
+    db $ff
 
-	org $fff0
-	dw $0000
-	dw $0000
-	dw $0000
-	dw $0000
-	dw $0000
-	dw $0000
-	dw _entry
+_wait:
+    ldx #1
+:   ldy #$e0
+:   dey
+    bne :-
+    dex
+    bne :--
+    rts
+
+    org $fffc
+    dw _entry
+    dw 0

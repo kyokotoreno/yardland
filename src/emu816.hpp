@@ -22,7 +22,7 @@
 #ifndef EMU816_H
 #define EMU816_H
 
-#include <libyardland/cpu/mem816.hpp>
+#include <memory.hpp>
 
 #include <stdlib.h>
 
@@ -40,9 +40,12 @@
 
 // Defines the WDC 65C816 emulator.
 class emu816 :
-	public mem816
+	public Memory
 {
 public:
+	emu816();
+	~emu816();
+	
 	static void reset(bool trace);
 	static void step();
 
@@ -54,6 +57,11 @@ public:
 	INLINE static bool isStopped()
 	{
 		return (stopped);
+	}
+
+	INLINE static bool isInterrupted()
+	{
+		return (interrupted);
 	}
 
 private:
@@ -85,9 +93,6 @@ private:
 	static bool		interrupted;
 	static unsigned long cycles;
 	static bool		trace;
-
-	emu816();
-	~emu816();
 
 	static void show();
 	static void bytes(unsigned int);

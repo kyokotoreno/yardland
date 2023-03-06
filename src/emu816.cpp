@@ -24,7 +24,7 @@
 
 //using namespace std;
 
-#include <libyardland/cpu/emu816.hpp>
+#include <emu816.hpp>
 
 union emu816::FLAGS		emu816::p;
 

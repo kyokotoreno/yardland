@@ -1,0 +1,7 @@
+# Ignore built binary
+main.bin
+main.o
+main.map
+crt0.o
+vectors.o
+wait.o

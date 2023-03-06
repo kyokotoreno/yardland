@@ -6,11 +6,11 @@
 #include <cstdint>
 #include <boost/log/trivial.hpp>
 
-class BinaryFile
+class YbinFile
 {
 public:
-    BinaryFile(std::string filename);
-    ~BinaryFile();
+    YbinFile(std::string filename);
+    ~YbinFile();
     int load();
     void save();
     uint8_t* getTextBuffer();

@@ -19,7 +19,7 @@
 // http://creativecommons.org/licenses/by-nc-sa/4.0/
 //------------------------------------------------------------------------------
 
-#include <libyardland/cpu/mem816.hpp>
+#include <mem816.hpp>
 
 mem816::Addr	mem816::memMask;
 mem816::Addr	mem816::ramSize;
