@@ -59,11 +59,6 @@ public:
 		return (stopped);
 	}
 
-	INLINE static bool isInterrupted()
-	{
-		return (interrupted);
-	}
-
 private:
 	static union FLAGS {
 		struct {
@@ -273,7 +268,7 @@ private:
 
 		BYTES(1);
 		cycles += 3;
-		return (bank(dbr) | getWord(bank(0) | (dp.w + disp)) + y.w);
+		return (bank(dbr) | (getWord(bank(0) | (dp.w + disp)) + y.w));
 	}
 
 	// Direct Page Indirect Long - [d]

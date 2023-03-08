@@ -1,11 +1,11 @@
 #include <video-adapter.hpp>
 #include <font8x8/font8x8_basic.hpp>
 
-VideoPorts *VideoAdapter::pPorts = new VideoPorts;
+VideoPorts *VideoAdapter::pPorts = new VideoPorts {0, 0};
 char *VideoAdapter::pTextBuffer = new char[TEXT_BUFFER_SIZE];
 uint8_t *VideoAdapter::pPixelBuffer = new uint8_t[PIXEL_BUFFER_SIZE * 2];
 
-VideoAdapter::VideoAdapter() {
+void VideoAdapter::init() {
     // Add the video ports region.
     Memory::addRegion({
         REGION_VIDEOPORTS_START,
@@ -26,34 +26,29 @@ VideoAdapter::VideoAdapter() {
     });
 }
 
-VideoAdapter::~VideoAdapter() {
+
+void VideoAdapter::destroy() {
     delete VideoAdapter::pPorts;
     delete[] VideoAdapter::pTextBuffer;
     delete[] VideoAdapter::pPixelBuffer;
 }
 
 void VideoAdapter::drawTerminal() {
-    for (unsigned int row = 0, column = 0; row < TERMINAL_ROWS && column < TERMINAL_COLUMNS; row++) {
-        uint8_t character = pTextBuffer[(row * TERMINAL_COLUMNS) + column];
-        
-        for (unsigned int x = 0, y = 0; x < 8 && y < 8; x++) {
-            bool set = font8x8_basic[character][x] & 1 << y;
+    for (unsigned int row = 0; row < TERMINAL_ROWS; row++) {
+        for (unsigned int column = 0; column < TERMINAL_COLUMNS; column++) {
+            uint8_t character = VideoAdapter::pTextBuffer[(row * TERMINAL_COLUMNS) + column];
 
-            int screenY = row * 8, screenX = column * 8;
-            
-            int ptr = ((screenY + x) * TERMINAL_WIDTH) + screenX + y;
-            
-            reinterpret_cast<uint16_t*>(VideoAdapter::pPixelBuffer)[ptr] = set ? UINT16_MAX : 0;   
+            for (unsigned int y = 0; y < 8; y++) {
+                for (unsigned int x = 0; x < 8; x++) {
+                    bool set = font8x8_basic[character][x] & 1 << y;
 
-            if(x == 8) {
-                x = 0;
-                y++;
+                    unsigned int screenY = row * 8, screenX = column * 8;
+                    
+                    size_t ptr = ((screenY + x) * TERMINAL_WIDTH) + (screenX + y);
+                    
+                    reinterpret_cast<uint16_t*>(VideoAdapter::pPixelBuffer)[ptr] = set ? UINT16_MAX : 0;
+                }
             }
-        }
-
-        if (row == TERMINAL_ROWS) {
-            row = 0;
-            column++;
         }
     }
 }
@@ -63,10 +58,10 @@ void VideoAdapter::render(SDL_Texture *texture) {
         drawTerminal();
     
     int pitch;
-    uint8_t *pPixels;
+    uint16_t *pPixels;
 
-    SDL_LockTexture(texture, NULL, (void**) &pPixels, &pitch);
-    std::memcpy(pPixels, pPixelBuffer, PIXEL_BUFFER_SIZE * 2);
+    SDL_LockTexture(texture, NULL, reinterpret_cast<void**>(&pPixels), &pitch);
+    memcpy(pPixels, pPixelBuffer, PIXEL_BUFFER_SIZE * 2);
     SDL_UnlockTexture(texture);
 }
 
@@ -83,9 +78,9 @@ void VideoAdapter::accessText(uint32_t address, uint8_t *data, bool get) {
     size_t character = address - REGION_TEXT_START;
 
     if (get) {
-        *data = VideoAdapter::pTextBuffer[character];
+        *data = reinterpret_cast<uint8_t*>(VideoAdapter::pTextBuffer)[character];
     } else {
-        VideoAdapter::pTextBuffer[character] = *data;
+        reinterpret_cast<uint8_t*>(VideoAdapter::pTextBuffer)[character] = *data;
     }
 }
 

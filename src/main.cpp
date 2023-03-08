@@ -70,6 +70,8 @@ int main(int argc, char** argv)
     //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
     //IM_ASSERT(font != NULL);
 
+    VideoAdapter::init();
+
     bool emulating = false;
     bool emulator_trace = true;
     std::string filename = "deps/test/main.bin";
@@ -80,10 +82,6 @@ int main(int argc, char** argv)
         TERMINAL_WIDTH,
         TERMINAL_HEIGHT
     );
-
-    Memory::addRegion(video.getPortsRegion());
-    Memory::addRegion(video.getTerminalRegion());
-    Memory::addRegion(video.getPixelsRegion());
 
     // Main loop
     bool done = false;
@@ -112,18 +110,16 @@ int main(int argc, char** argv)
         ImGui::Begin("Control");
         ImGui::SetWindowSize(ImVec2 {300, 200});
         ImGui::InputText("Rom file", &filename);
-        if(!emulating) {
-            if (ImGui::Button("Load file")) {
-                auto rom = new BinaryFile(filename);
-                Memory::populate(rom->getBuffer(), rom->getSize());
-                rom->~BinaryFile();
-            }
+        if (ImGui::Button("Load file")) {
+            auto rom = new BinaryFile(filename);
+            Memory::populate(rom->getBuffer(), rom->getSize());
+            rom->~BinaryFile();
         }
         ImGui::Checkbox("Trace emulator", &emulator_trace);
-        if(ImGui::Button("Reset")) {
-            emulator.reset(emulator_trace);
-            emulating = true;
+        if (ImGui::Button("Reset")) {
+            emu816::reset(emulator_trace);
         }
+        ImGui::Checkbox("Emulating?", &emulating);
         ImGui::End();
 
         //ImGui::Begin("Performance");
@@ -136,10 +132,10 @@ int main(int argc, char** argv)
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
         SDL_RenderClear(renderer);
         if (emulating) {
-            if (!emulator.isStopped()) {
-                emulator.step();
+            if (!emu816::isStopped()) {
+                emu816::step();
             }
-            video.render(texture);
+            VideoAdapter::render(texture);
         }
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
@@ -147,6 +143,8 @@ int main(int argc, char** argv)
     }
 
     // Cleanup
+    VideoAdapter::destroy();
+
     ImGui_ImplSDLRenderer_Shutdown();
     ImGui_ImplSDL2_Shutdown();
     ImGui::DestroyContext();

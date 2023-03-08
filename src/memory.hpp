@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <iostream>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -79,18 +80,18 @@ public:
     static void populate(uint8_t *src, size_t size);
 
 	// Fetch a byte from memory (Modified to forward accesses to yardland's memory interface).
-	static Byte getByte(Addr ea)
+	inline static Byte getByte(Addr ea)
 	{
-        for(size_t i = 0; i < mPorts.size(); i++) {
-            if(ea == mPorts.at(i).address) {
+        for(size_t i = 0; i < mPorts->size(); i++) {
+            Port port = Memory::mPorts->at(i);
+            if(ea == port.address) {
                 uint8_t data = 0;
-                mPorts.at(i).access_func(ea, &data, true);
+                port.access_func(ea, &data, true);
                 return data;
             }
         }
-
-        for(size_t i = 0; i < mRegions.size(); i++) {
-            Region region = mRegions.at(i);
+        for(size_t i = 0; i < mRegions->size(); i++) {
+            Region region = mRegions->at(i);
             if(ea >= region.start_address && ea <= region.end_address) {
                 uint8_t data = 0;
                 region.access_func(ea, &data, true);
@@ -111,17 +112,17 @@ public:
 		return (join(getByte(ea + 2), getWord(ea + 0)));
 	}
 	// Write a byte to memory (Modified to forward accesses to yardland's memory interface).
-	static void setByte(Addr ea, Byte data)
+	inline static void setByte(Addr ea, Byte data)
 	{
-        for(size_t i = 0; i < Memory::mPorts.size(); i++) {
-            Port port = Memory::mPorts.at(i);
+        for(size_t i = 0; i < Memory::mPorts->size(); i++) {
+            Port port = Memory::mPorts->at(i);
             if(ea == port.address) {
                 port.access_func(ea, &data, false);
                 return;
             }
         }
-        for(size_t i = 0; i < Memory::mRegions.size(); i++) {
-            Region region = Memory::mRegions.at(i);
+        for(size_t i = 0; i < Memory::mRegions->size(); i++) {
+            Region region = Memory::mRegions->at(i);
             if(ea >= region.start_address && ea <= region.end_address) {
                 region.access_func(ea, &data, false);
                 return;
@@ -143,8 +144,8 @@ private:
 	static uint8_t *pMemoryBuffer;
     /** @brief Ports.
      */
-    static std::vector<Port> mPorts;
+    static std::vector<Port> *mPorts;
     /** @brief Regions.
      */
-    static std::vector<Region> mRegions;
+    static std::vector<Region> *mRegions;
 };
