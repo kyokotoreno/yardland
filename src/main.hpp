@@ -13,6 +13,5 @@
 #include <input-files/binary-file.hpp>
 #include <emu816.hpp>
 
-static Memory memory;
 static VideoAdapter video;
 static emu816 emulator;

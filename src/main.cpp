@@ -21,7 +21,7 @@ int main(int argc, char** argv)
 int main(int argc, char** argv)
 {
     // Setup SDL
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
     {
         printf("Error: %s\n", SDL_GetError());
         return -1;
@@ -34,16 +34,13 @@ int main(int argc, char** argv)
 
     // Create window with SDL_Renderer graphics context
     SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-    SDL_Window* window = SDL_CreateWindow("Dear ImGui SDL2+SDL_Renderer example", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+    SDL_Window* window = SDL_CreateWindow("Yardland", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_ACCELERATED);
     if (renderer == NULL)
     {
         SDL_Log("Error creating SDL_Renderer!");
         return 0;
     }
-    //SDL_RendererInfo info;
-    //SDL_GetRendererInfo(renderer, &info);
-    //SDL_Log("Current SDL_Renderer: %s", info.name);
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -52,11 +49,8 @@ int main(int argc, char** argv)
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
-    // Setup Dear ImGui style
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
 
-    // Setup Platform/Renderer backends
     ImGui_ImplSDL2_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer_Init(renderer);
 
@@ -77,21 +71,19 @@ int main(int argc, char** argv)
     //IM_ASSERT(font != NULL);
 
     bool emulating = false;
-    bool emulator_trace = false;
+    bool emulator_trace = true;
     std::string filename = "deps/test/main.bin";
     SDL_Texture *texture = SDL_CreateTexture(
         renderer,
-        SDL_PIXELFORMAT_RGBA8888,
+        SDL_PIXELFORMAT_RGB565,
         SDL_TEXTUREACCESS_STREAMING,
         TERMINAL_WIDTH,
         TERMINAL_HEIGHT
     );
 
-    memory.addRegion(video.getPortsRegion());
-    memory.addRegion(video.getTerminalRegion());
-    memory.addRegion(video.getPixelsRegion());
-
-    emulator.setMemory(&memory);
+    Memory::addRegion(video.getPortsRegion());
+    Memory::addRegion(video.getTerminalRegion());
+    Memory::addRegion(video.getPixelsRegion());
 
     // Main loop
     bool done = false;
@@ -123,7 +115,7 @@ int main(int argc, char** argv)
         if(!emulating) {
             if (ImGui::Button("Load file")) {
                 auto rom = new BinaryFile(filename);
-                memory.populate(rom->getBuffer(), rom->getSize());
+                Memory::populate(rom->getBuffer(), rom->getSize());
                 rom->~BinaryFile();
             }
         }
@@ -134,9 +126,9 @@ int main(int argc, char** argv)
         }
         ImGui::End();
 
-        ImGui::Begin("Performance");
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        ImGui::End();
+        //ImGui::Begin("Performance");
+        //ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        //ImGui::End();
 
         // Rendering
         ImGui::Render();
